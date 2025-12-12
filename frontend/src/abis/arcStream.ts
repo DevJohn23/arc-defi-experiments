@@ -36,12 +36,17 @@ export const arcStreamABI = [
     "name": "createStream",
     "inputs": [
       {
-        "name": "_recipient",
+        "name": "recipient",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "_duration",
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "duration",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -92,6 +97,11 @@ export const arcStreamABI = [
         "name": "deposit",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "tokenAddress",
+        "type": "address",
+        "internalType": "address"
       },
       {
         "name": "startTime",
@@ -195,6 +205,12 @@ export const arcStreamABI = [
         "internalType": "uint256"
       },
       {
+        "name": "tokenAddress",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
         "name": "duration",
         "type": "uint256",
         "indexed": false,
@@ -216,7 +232,7 @@ export const arcStreamABI = [
       {
         "name": "recipient",
         "type": "address",
-        "indexed": true,
+        "indexed": false,
         "internalType": "address"
       },
       {
@@ -230,6 +246,11 @@ export const arcStreamABI = [
   },
   {
     "type": "error",
+    "name": "Erc20ValueSent",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidStreamId",
     "inputs": [
       {
@@ -238,6 +259,11 @@ export const arcStreamABI = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NativeValueMismatch",
+    "inputs": []
   },
   {
     "type": "error",

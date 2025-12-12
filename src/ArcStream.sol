@@ -66,48 +66,49 @@ contract ArcStream {
 
     /**
      * @notice Creates a new payment stream.
-     * @param _recipient The address that will receive the streamed funds.
-     * @param _deposit The total amount to be streamed.
-     * @param _tokenAddress The address of the ERC-20 token, or address(0) for native USDC.
-     * @param _duration The total duration of the stream in seconds.
+     * @param recipient The address that will receive the streamed funds.
+     * @param amount The total amount to be streamed.
+     * @param duration The total duration of the stream in seconds.
+     * @param tokenAddress The address of the ERC-20 token, or address(0) for native USDC.
      */
     function createStream(
-        address _recipient,
-        uint256 _deposit,
-        address _tokenAddress,
-        uint256 _duration
+        address recipient,
+        uint256 amount,
+        uint256 duration,
+        address tokenAddress
     )
-        public
+        external
         payable
     {
-        if (_deposit == 0) revert ZeroValue();
-        if (_duration == 0) revert ZeroDuration();
+        if (amount == 0) revert ZeroValue();
+        if (duration == 0) revert ZeroDuration();
 
-        if (_tokenAddress == address(0)) {
-            if (msg.value != _deposit) revert NativeValueMismatch();
+        if (tokenAddress == address(0)) {
+            // Native USDC transfer
+            if (msg.value != amount) revert NativeValueMismatch();
         } else {
+            // ERC-20 token transfer
             if (msg.value > 0) revert Erc20ValueSent();
-            // Transfer ERC-20 from sender to this contract
-            IERC20(_tokenAddress).transferFrom(msg.sender, address(this), _deposit);
+            IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
         }
 
         uint256 streamId = nextStreamId;
-        uint256 rate = _deposit / _duration;
+        uint256 rate = amount / duration;
 
         streams[streamId] = Stream({
             sender: msg.sender,
-            recipient: _recipient,
-            deposit: _deposit,
-            tokenAddress: _tokenAddress,
+            recipient: recipient,
+            deposit: amount,
+            tokenAddress: tokenAddress,
             startTime: block.timestamp,
-            duration: _duration,
-            remainingBalance: _deposit,
+            duration: duration,
+            remainingBalance: amount,
             ratePerSecond: rate
         });
 
         nextStreamId++;
 
-        emit CreateStream(streamId, msg.sender, _recipient, _deposit, _tokenAddress, _duration);
+        emit CreateStream(streamId, msg.sender, recipient, amount, tokenAddress, duration);
     }
 
     /**

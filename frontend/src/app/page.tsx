@@ -8,7 +8,7 @@ import { arcStreamABI } from '@/abis/arcStream';
 import { erc20ABI } from '@/abis/erc20';
 
 // Contract Addresses
-const ARC_STREAM_ADDRESS = '0x61Bf3EB91e55d3B22C0c95d0d7627a86f2Ef5033';
+const ARC_STREAM_ADDRESS = '0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524';
 const MOCK_EURC_ADDRESS = '0xFd2688cE369A543a6D4Ed6adE4350ebD13F88AC4';
 
 type TokenSymbol = 'NATIVE' | 'EURC';
@@ -83,15 +83,17 @@ export default function Home() {
     }
 
     const isNative = selectedToken === 'NATIVE';
+    const tokenAddress = isNative ? zeroAddress : MOCK_EURC_ADDRESS;
     
     writeContract({
       abi: arcStreamABI,
       address: ARC_STREAM_ADDRESS,
       functionName: 'createStream',
       args: [
-        recipient as `0x${string}`, 
+        recipient as `0x${string}`,
+        parsedAmount, 
         BigInt(duration),
-        isNative ? zeroAddress : MOCK_EURC_ADDRESS
+        tokenAddress
       ],
       value: isNative ? parsedAmount : BigInt(0),
     });
@@ -115,7 +117,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-8 font-sans">
       <header className="w-full max-w-5xl flex justify-between items-center mb-12">
-        <h1 className="text-3xl font-bold text-purple-400">ArcStream v2</h1>
+        <h1 className="text-3xl font-bold text-purple-400">ArcStream v2.1</h1>
         <ConnectButton />
       </header>
 
@@ -218,7 +220,7 @@ export default function Home() {
         </div>
       </main>
       <footer className="w-full max-w-5xl mt-12 text-center text-gray-500">
-        <p>ArcStream Frontend v0.2.0</p>
+        <p>ArcStream Frontend v0.2.1</p>
       </footer>
     </div>
   );

@@ -34,8 +34,8 @@ contract ArcStreamTest is Test {
         arcStream.createStream{value: depositAmount}(
             recipient,
             depositAmount,
-            address(0),
-            duration
+            duration,
+            address(0)
         );
 
         (
@@ -61,7 +61,7 @@ contract ArcStreamTest is Test {
     function test_Fail_CreateStream_Native_ZeroDeposit() public {
         vm.prank(sender);
         vm.expectRevert(ArcStream.ZeroValue.selector);
-        arcStream.createStream(recipient, 0, address(0), duration);
+        arcStream.createStream(recipient, 0, duration, address(0));
     }
 
     function test_Fail_CreateStream_Native_ZeroDuration() public {
@@ -70,8 +70,8 @@ contract ArcStreamTest is Test {
         arcStream.createStream{value: depositAmount}(
             recipient,
             depositAmount,
-            address(0),
-            0
+            0,
+            address(0)
         );
     }
 
@@ -81,8 +81,8 @@ contract ArcStreamTest is Test {
         arcStream.createStream{value: depositAmount - 1}(
             recipient,
             depositAmount,
-            address(0),
-            duration
+            duration,
+            address(0)
         );
     }
 
@@ -98,8 +98,8 @@ contract ArcStreamTest is Test {
         arcStream.createStream(
             recipient,
             depositAmount,
-            address(mockToken),
-            duration
+            duration,
+            address(mockToken)
         );
 
         // 3. Verify stream data
@@ -132,8 +132,8 @@ contract ArcStreamTest is Test {
         arcStream.createStream{value: 1 ether}(
             recipient,
             depositAmount,
-            address(mockToken),
-            duration
+            duration,
+            address(mockToken)
         );
     }
 
@@ -141,7 +141,7 @@ contract ArcStreamTest is Test {
 
     function test_Withdraw_Native_Success() public {
         vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, depositAmount, address(0), duration);
+        arcStream.createStream{value: depositAmount}(recipient, depositAmount, duration, address(0));
 
         uint256 timeToSkip = duration / 2;
         vm.warp(block.timestamp + timeToSkip);
@@ -160,7 +160,7 @@ contract ArcStreamTest is Test {
         vm.prank(sender);
         mockToken.approve(address(arcStream), depositAmount);
         vm.prank(sender);
-        arcStream.createStream(recipient, depositAmount, address(mockToken), duration);
+        arcStream.createStream(recipient, depositAmount, duration, address(mockToken));
 
         uint256 timeToSkip = duration / 2;
         vm.warp(block.timestamp + timeToSkip);
@@ -178,7 +178,7 @@ contract ArcStreamTest is Test {
 
     function test_CancelStream_Native_BySender() public {
         vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, depositAmount, address(0), duration);
+        arcStream.createStream{value: depositAmount}(recipient, depositAmount, duration, address(0));
 
         vm.warp(block.timestamp + duration / 4);
 
@@ -202,7 +202,7 @@ contract ArcStreamTest is Test {
         vm.prank(sender);
         mockToken.approve(address(arcStream), depositAmount);
         vm.prank(sender);
-        arcStream.createStream(recipient, depositAmount, address(mockToken), duration);
+        arcStream.createStream(recipient, depositAmount, duration, address(mockToken));
         
         vm.warp(block.timestamp + duration / 4);
         

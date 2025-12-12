@@ -1,6 +1,6 @@
 # 📈 Relatório de Progresso: Projeto ArcStream
 
-**Última Atualização:** 11 de dezembro de 2025
+**Última Atualização:** sexta-feira, 12 de dezembro de 2025
 
 Este documento serve como uma fonte central de verdade para o contexto, progresso e próximos passos do projeto ArcStream. Ele deve ser consultado no início de cada sessão para garantir a continuidade do trabalho.
 
@@ -18,6 +18,19 @@ Este documento serve como uma fonte central de verdade para o contexto, progress
 ---
 
 ## ✅ Progresso Realizado
+
+### Frontend (dApp) v2.1 (Final Fix)
+
+- **Status:** Concluído
+- **Descrição:** O frontend foi atualizado para ser compatível com o `ArcStream v2.1` do contrato inteligente.
+- **Funcionalidades Implementadas:**
+    1.  **Atualização do Endereço do Contrato:** O endereço do contrato `ARC_STREAM_ADDRESS` foi atualizado para `0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524` em `frontend/src/app/page.tsx`.
+    2.  **Sincronização da ABI:** O arquivo `frontend/src/abis/arcStream.ts` foi revisado para garantir que a ABI do contrato `ArcStream` corresponda à assinatura da função `createStream` atualizada: `function createStream(address recipient, uint256 amount, uint256 duration, address tokenAddress)`.
+    3.  **Lógica da Função `createStream` Refatorada:** A chamada `writeContract` para `createStream` em `frontend/src/app/page.tsx` foi ajustada para:
+        *   Passar os argumentos na ordem correta: `[recipient, amount, duration, tokenAddress]`.
+        *   Implementar a lógica crítica para `amount` como o 2º argumento em ambos os casos (USDC Nativo e ERC-20).
+        *   Definir corretamente o campo `value`: `value: isNative ? parsedAmount : BigInt(0)`.
+    4.  **Atualizações Visuais:** O título e o rodapé do frontend foram atualizados para refletir a versão `v2.1`.
 
 ### Backend (Smart Contract) v2 - Multi-Asset Streaming
 
