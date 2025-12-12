@@ -44,6 +44,11 @@ export const arcStreamABI = [
         "name": "_duration",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "tokenAddress",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],

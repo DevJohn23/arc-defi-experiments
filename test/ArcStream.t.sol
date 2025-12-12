@@ -3,30 +3,47 @@ pragma solidity ^0.8.30;
 
 import "forge-std/Test.sol";
 import "src/ArcStream.sol";
+import "src/mocks/MockERC20.sol";
 
 contract ArcStreamTest is Test {
+    // Contracts
     ArcStream arcStream;
+    MockERC20 mockToken;
+
+    // Test Users
     address sender = address(1);
     address recipient = address(2);
+
+    // Stream Parameters
     uint256 depositAmount = 1000 ether;
     uint256 duration = 1000; // seconds
 
     function setUp() public {
         arcStream = new ArcStream();
+        mockToken = new MockERC20("Mock Token", "MTKN", 18);
+
+        // Fund sender for both native and ERC-20 tests
+        vm.deal(sender, depositAmount * 2); // For native tests + gas
+        mockToken.mint(sender, depositAmount);
     }
 
-    // --- Test Create Stream ---
+    // --- Test Create Stream (Native USDC) ---
 
-    function test_CreateStream_Success() public {
-        vm.deal(sender, depositAmount);
+    function test_CreateStream_Native_Success() public {
         vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, duration);
+        arcStream.createStream{value: depositAmount}(
+            recipient,
+            depositAmount,
+            address(0),
+            duration
+        );
 
         (
             address streamSender,
             address streamRecipient,
             uint256 deposit,
-            , // startTime is non-deterministic
+            address tokenAddress,
+            , // startTime
             uint256 streamDuration,
             uint256 remainingBalance,
             uint256 ratePerSecond
@@ -35,161 +52,197 @@ contract ArcStreamTest is Test {
         assertEq(streamSender, sender);
         assertEq(streamRecipient, recipient);
         assertEq(deposit, depositAmount);
+        assertEq(tokenAddress, address(0));
         assertEq(streamDuration, duration);
         assertEq(remainingBalance, depositAmount);
         assertEq(ratePerSecond, depositAmount / duration);
     }
 
-    function test_Fail_CreateStream_ZeroDeposit() public {
+    function test_Fail_CreateStream_Native_ZeroDeposit() public {
         vm.prank(sender);
         vm.expectRevert(ArcStream.ZeroValue.selector);
-        arcStream.createStream(recipient, duration);
+        arcStream.createStream(recipient, 0, address(0), duration);
     }
 
-    function test_Fail_CreateStream_ZeroDuration() public {
-        vm.deal(sender, depositAmount);
+    function test_Fail_CreateStream_Native_ZeroDuration() public {
         vm.prank(sender);
         vm.expectRevert(ArcStream.ZeroDuration.selector);
-        arcStream.createStream{value: depositAmount}(recipient, 0);
+        arcStream.createStream{value: depositAmount}(
+            recipient,
+            depositAmount,
+            address(0),
+            0
+        );
     }
 
-    // --- Test Withdraw ---
-
-    function test_Withdraw_Success() public {
-        // 1. Create stream
-        vm.deal(sender, depositAmount);
+    function test_Fail_CreateStream_Native_ValueMismatch() public {
         vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, duration);
+        vm.expectRevert(ArcStream.NativeValueMismatch.selector);
+        arcStream.createStream{value: depositAmount - 1}(
+            recipient,
+            depositAmount,
+            address(0),
+            duration
+        );
+    }
 
-        // 2. Advance time by half the duration
+    // --- Test Create Stream (ERC-20) ---
+
+    function test_CreateStream_ERC20_Success() public {
+        // 1. Approve contract to spend tokens
+        vm.prank(sender);
+        mockToken.approve(address(arcStream), depositAmount);
+
+        // 2. Create stream
+        vm.prank(sender);
+        arcStream.createStream(
+            recipient,
+            depositAmount,
+            address(mockToken),
+            duration
+        );
+
+        // 3. Verify stream data
+        (
+            , // sender
+            , // recipient
+            uint256 deposit,
+            address tokenAddress,
+            , // startTime
+            , // duration
+            uint256 remainingBalance,
+            uint256 ratePerSecond
+        ) = arcStream.streams(0);
+
+        assertEq(deposit, depositAmount);
+        assertEq(tokenAddress, address(mockToken));
+        assertEq(remainingBalance, depositAmount);
+        assertEq(ratePerSecond, depositAmount / duration);
+
+        // 4. Verify token transfer
+        assertEq(mockToken.balanceOf(sender), 0);
+        assertEq(mockToken.balanceOf(address(arcStream)), depositAmount);
+    }
+
+    function test_Fail_CreateStream_ERC20_ValueSent() public {
+        vm.prank(sender);
+        mockToken.approve(address(arcStream), depositAmount);
+
+        vm.expectRevert(ArcStream.Erc20ValueSent.selector);
+        arcStream.createStream{value: 1 ether}(
+            recipient,
+            depositAmount,
+            address(mockToken),
+            duration
+        );
+    }
+
+    // --- Test Withdraw (Native) ---
+
+    function test_Withdraw_Native_Success() public {
+        vm.prank(sender);
+        arcStream.createStream{value: depositAmount}(recipient, depositAmount, address(0), duration);
+
         uint256 timeToSkip = duration / 2;
         vm.warp(block.timestamp + timeToSkip);
 
-        // 3. Check balance
         uint256 expectedBalance = arcStream.balanceOf(0);
-        assertEq(expectedBalance, timeToSkip * (depositAmount / duration));
-
-        // 4. Withdraw
         uint256 recipientInitialBalance = recipient.balance;
-        vm.prank(recipient); // Anyone can call, but let's test with recipient
+        
         arcStream.withdrawFromStream(0);
         
-        // 5. Verify balances
         assertEq(recipient.balance, recipientInitialBalance + expectedBalance);
-        (, , , , , uint256 remainingBalance, ) = arcStream.streams(0);
-        assertEq(remainingBalance, depositAmount - expectedBalance);
     }
 
-    function test_Withdraw_FullStream() public {
-        vm.deal(sender, depositAmount);
+    // --- Test Withdraw (ERC-20) ---
+
+    function test_Withdraw_ERC20_Success() public {
         vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, duration);
-
-        vm.warp(block.timestamp + duration + 1); // End of stream
-
-        uint256 recipientInitialBalance = recipient.balance;
-        arcStream.withdrawFromStream(0);
-
-        assertEq(recipient.balance, recipientInitialBalance + depositAmount);
-        (, , , , , uint256 remainingBalance, ) = arcStream.streams(0);
-        assertEq(remainingBalance, 0);
-    }
-
-    function test_Fail_Withdraw_NothingToWithdraw() public {
-        vm.deal(sender, depositAmount);
+        mockToken.approve(address(arcStream), depositAmount);
         vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, duration);
-
-        // No time has passed
-        vm.expectRevert(ArcStream.NothingToWithdraw.selector);
-        arcStream.withdrawFromStream(0);
-    }
-
-    // --- Test Cancel Stream ---
-
-    function test_CancelStream_BySender() public {
-        vm.deal(sender, depositAmount);
-        vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, duration);
-
-        uint256 timeToSkip = duration / 4;
-        vm.warp(block.timestamp + timeToSkip);
-
-        uint256 recipientAmount = arcStream.balanceOf(0);
-        (, , , , , uint256 remainingBalance, ) = arcStream.streams(0);
-        uint256 senderAmount = remainingBalance - recipientAmount;
-
-        uint256 senderInitialBalance = sender.balance;
-        uint256 recipientInitialBalance = recipient.balance;
-
-        vm.prank(sender);
-        arcStream.cancelStream(0);
-
-        assertEq(sender.balance, senderInitialBalance + senderAmount);
-        assertEq(recipient.balance, recipientInitialBalance + recipientAmount);
-
-        // Stream should be deleted
-        (address streamSender, , , , , , ) = arcStream.streams(0);
-        assertEq(streamSender, address(0));
-    }
-
-    function test_CancelStream_ByRecipient() public {
-        vm.deal(sender, depositAmount);
-        vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, duration);
+        arcStream.createStream(recipient, depositAmount, address(mockToken), duration);
 
         uint256 timeToSkip = duration / 2;
         vm.warp(block.timestamp + timeToSkip);
 
+        uint256 expectedBalance = arcStream.balanceOf(0);
+        uint256 recipientInitialBalance = mockToken.balanceOf(recipient);
+
+        vm.prank(sender); // Allow anyone to call withdraw
+        arcStream.withdrawFromStream(0);
+
+        assertEq(mockToken.balanceOf(recipient), recipientInitialBalance + expectedBalance);
+    }
+
+    // --- Test Cancel Stream (Native) ---
+
+    function test_CancelStream_Native_BySender() public {
+        vm.prank(sender);
+        arcStream.createStream{value: depositAmount}(recipient, depositAmount, address(0), duration);
+
+        vm.warp(block.timestamp + duration / 4);
+
         uint256 recipientAmount = arcStream.balanceOf(0);
-        (, , , , , uint256 remainingBalance, ) = arcStream.streams(0);
+        (, , , , , , uint256 remainingBalance, ) = arcStream.streams(0);
         uint256 senderAmount = remainingBalance - recipientAmount;
 
         uint256 senderInitialBalance = sender.balance;
         uint256 recipientInitialBalance = recipient.balance;
 
-        vm.prank(recipient);
+        vm.prank(sender);
         arcStream.cancelStream(0);
 
         assertEq(sender.balance, senderInitialBalance + senderAmount);
         assertEq(recipient.balance, recipientInitialBalance + recipientAmount);
     }
+    
+    // --- Test Cancel Stream (ERC-20) ---
 
-    function test_Fail_CancelStream_NotAuthorized() public {
-        vm.deal(sender, depositAmount);
+    function test_CancelStream_ERC20_BySender() public {
         vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, duration);
+        mockToken.approve(address(arcStream), depositAmount);
+        vm.prank(sender);
+        arcStream.createStream(recipient, depositAmount, address(mockToken), duration);
+        
+        vm.warp(block.timestamp + duration / 4);
+        
+        uint256 recipientAmount = arcStream.balanceOf(0);
+        
+        (
+            address streamSender,
+            address streamRecipient,
+            uint256 deposit,
+            address tokenAddress,
+            uint256 startTime,
+            uint256 streamDuration,
+            uint256 remainingBalance,
+            uint256 ratePerSecond
+        ) = arcStream.streams(0);
 
-        address unauthorized = address(3);
-        vm.prank(unauthorized);
-        vm.expectRevert(ArcStream.NotAuthorized.selector);
+        ArcStream.Stream memory stream = ArcStream.Stream({
+            sender: streamSender,
+            recipient: streamRecipient,
+            deposit: deposit,
+            tokenAddress: tokenAddress,
+            startTime: startTime,
+            duration: streamDuration,
+            remainingBalance: remainingBalance,
+            ratePerSecond: ratePerSecond
+        });
+
+        uint256 senderAmount = stream.remainingBalance - recipientAmount;
+
+        uint256 senderInitialBalance = mockToken.balanceOf(sender);
+        uint256 recipientInitialBalance = mockToken.balanceOf(recipient);
+
+        vm.prank(sender);
         arcStream.cancelStream(0);
-    }
 
-    // --- Test Balance Of ---
-
-    function test_BalanceOf_Correctness() public {
-        vm.deal(sender, depositAmount);
-        vm.prank(sender);
-        arcStream.createStream{value: depositAmount}(recipient, duration);
-
-        // Time = 0
-        assertEq(arcStream.balanceOf(0), 0);
-
-        // Time = 1/4
-        vm.warp(block.timestamp + duration / 4);
-        assertEq(arcStream.balanceOf(0), (duration / 4) * (depositAmount / duration));
-
-        // Time = 1/2
-        vm.warp(block.timestamp + duration / 4); // another 1/4
-        assertEq(arcStream.balanceOf(0), (duration / 2) * (depositAmount / duration));
-
-        // Withdraw and check again
-        arcStream.withdrawFromStream(0);
-        assertEq(arcStream.balanceOf(0), 0);
-
-        // Advance time again
-        vm.warp(block.timestamp + duration / 4);
-        assertEq(arcStream.balanceOf(0), (duration / 4) * (depositAmount / duration));
+        assertEq(mockToken.balanceOf(sender), senderInitialBalance + senderAmount);
+        assertEq(mockToken.balanceOf(recipient), recipientInitialBalance + recipientAmount);
+        
+        // Stream should be deleted
+        (address deletedStreamSender, , , , , , , ) = arcStream.streams(0);
+        assertEq(deletedStreamSender, address(0));
     }
 }

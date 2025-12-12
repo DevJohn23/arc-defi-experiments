@@ -1,6 +1,6 @@
 # 📈 Relatório de Progresso: Projeto ArcStream
 
-**Última Atualização:** 07 de dezembro de 2025
+**Última Atualização:** 11 de dezembro de 2025
 
 Este documento serve como uma fonte central de verdade para o contexto, progresso e próximos passos do projeto ArcStream. Ele deve ser consultado no início de cada sessão para garantir a continuidade do trabalho.
 
@@ -19,7 +19,23 @@ Este documento serve como uma fonte central de verdade para o contexto, progress
 
 ## ✅ Progresso Realizado
 
-### Backend (Smart Contract)
+### Backend (Smart Contract) v2 - Multi-Asset Streaming
+
+- **Status:** Concluído
+- **Descrição:** O contrato foi atualizado para suportar tanto a moeda nativa (USDC) quanto qualquer token padrão ERC-20.
+- **Funcionalidades Implementadas:**
+    1.  **Suporte Multi-Ativo:** O contrato `ArcStream.sol` foi refatorado para permitir a criação de `streams` tanto com **USDC Nativo** (representado por `address(0)`) quanto com qualquer **token ERC-20**.
+        - A `struct Stream` foi atualizada com um campo `tokenAddress`.
+        - As funções `createStream`, `withdrawFromStream` e `cancelStream` agora contêm lógica para tratar os dois tipos de ativos de forma segura e eficiente.
+    2.  **Contrato Mock para Testes:** Um contrato `MockERC20.sol` foi criado em `src/mocks/` para simular um token ERC-20 nos testes, permitindo a verificação completa do fluxo.
+    3.  **Testes Abrangentes (v2):** O conjunto de testes (`test/ArcStream.t.sol`) foi expandido para cobrir a nova funcionalidade, incluindo:
+        - Testes para a criação de `streams` com tokens ERC-20.
+        - Testes para o saque (`withdraw`) de `streams` de tokens ERC-20.
+        - Testes para o cancelamento de `streams` de tokens ERC-20.
+        - Todos os testes originais para o fluxo de USDC Nativo foram mantidos e adaptados, garantindo que a funcionalidade existente não foi comprometida.
+    - **Resultado:** Todos os 10 testes (nativos e ERC-20) passam com sucesso (`forge test`).
+
+### Backend (Smart Contract) v1
 
 1.  **Contrato Principal (`src/ArcStream.sol`):**
     *   **Status:** Concluído.

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import "forge-std/console.sol";
+import "forge-std/interfaces/IERC20.sol";
 
 /**
  * @title ArcStream Protocol
- * @dev A protocol for creating and managing real-time payment streams of native USDC.
+ * @dev A protocol for creating and managing real-time payment streams of native USDC or ERC-20 tokens.
  * This contract allows a Payer to deposit funds that flow to a Recipient over a specified duration.
  */
 contract ArcStream {
@@ -16,6 +16,7 @@ contract ArcStream {
         address indexed sender,
         address indexed recipient,
         uint256 deposit,
+        address tokenAddress,
         uint256 duration
     );
 
@@ -39,6 +40,7 @@ contract ArcStream {
         address sender;
         address recipient;
         uint256 deposit;
+        address tokenAddress; // address(0) for native USDC, otherwise ERC-20
         uint256 startTime;
         uint256 duration;
         uint256 remainingBalance;
@@ -57,41 +59,61 @@ contract ArcStream {
     error ZeroDuration();
     error NothingToWithdraw();
     error NotAuthorized();
+    error NativeValueMismatch();
+    error Erc20ValueSent();
 
     // --- Functions ---
 
     /**
      * @notice Creates a new payment stream.
      * @param _recipient The address that will receive the streamed funds.
+     * @param _deposit The total amount to be streamed.
+     * @param _tokenAddress The address of the ERC-20 token, or address(0) for native USDC.
      * @param _duration The total duration of the stream in seconds.
-     * @dev The amount sent with the transaction (`msg.value`) is the total deposit for the stream.
      */
-    function createStream(address _recipient, uint256 _duration) public payable {
-        if (msg.value == 0) revert ZeroValue();
+    function createStream(
+        address _recipient,
+        uint256 _deposit,
+        address _tokenAddress,
+        uint256 _duration
+    )
+        public
+        payable
+    {
+        if (_deposit == 0) revert ZeroValue();
         if (_duration == 0) revert ZeroDuration();
 
+        if (_tokenAddress == address(0)) {
+            if (msg.value != _deposit) revert NativeValueMismatch();
+        } else {
+            if (msg.value > 0) revert Erc20ValueSent();
+            // Transfer ERC-20 from sender to this contract
+            IERC20(_tokenAddress).transferFrom(msg.sender, address(this), _deposit);
+        }
+
         uint256 streamId = nextStreamId;
-        uint256 rate = msg.value / _duration;
+        uint256 rate = _deposit / _duration;
 
         streams[streamId] = Stream({
             sender: msg.sender,
             recipient: _recipient,
-            deposit: msg.value,
+            deposit: _deposit,
+            tokenAddress: _tokenAddress,
             startTime: block.timestamp,
             duration: _duration,
-            remainingBalance: msg.value,
+            remainingBalance: _deposit,
             ratePerSecond: rate
         });
 
         nextStreamId++;
 
-        emit CreateStream(streamId, msg.sender, _recipient, msg.value, _duration);
+        emit CreateStream(streamId, msg.sender, _recipient, _deposit, _tokenAddress, _duration);
     }
 
     /**
      * @notice Calculates the currently claimable amount for a stream.
      * @param _streamId The ID of the stream.
-     * @return The amount of USDC the recipient can withdraw at this moment.
+     * @return The amount of tokens the recipient can withdraw at this moment.
      */
     function balanceOf(uint256 _streamId) public view returns (uint256) {
         Stream storage stream = streams[_streamId];
@@ -125,8 +147,12 @@ contract ArcStream {
         stream.remainingBalance -= claimableAmount;
 
         // Interactions
-        (bool success, ) = stream.recipient.call{value: claimableAmount}("");
-        require(success, "USDC transfer failed");
+        if (stream.tokenAddress == address(0)) {
+            (bool success, ) = stream.recipient.call{value: claimableAmount}("");
+            require(success, "Native transfer failed");
+        } else {
+            IERC20(stream.tokenAddress).transfer(stream.recipient, claimableAmount);
+        }
 
         emit WithdrawFromStream(_streamId, stream.recipient, claimableAmount);
     }
@@ -151,19 +177,29 @@ contract ArcStream {
         // Copy values before deleting
         address streamSender = stream.sender;
         address streamRecipient = stream.recipient;
+        address tokenAddress = stream.tokenAddress;
 
         // --- Checks-Effects-Interactions Pattern ---
         // Effect: Invalidate the stream by deleting it
         delete streams[_streamId];
 
         // Interactions
-        if (recipientAmount > 0) {
-            (bool success, ) = streamRecipient.call{value: recipientAmount}("");
-            require(success, "Recipient transfer failed");
-        }
-        if (senderAmount > 0) {
-            (bool success, ) = streamSender.call{value: senderAmount}("");
-            require(success, "Sender refund failed");
+        if (tokenAddress == address(0)) {
+            if (recipientAmount > 0) {
+                (bool success, ) = streamRecipient.call{value: recipientAmount}("");
+                require(success, "Recipient transfer failed");
+            }
+            if (senderAmount > 0) {
+                (bool success, ) = streamSender.call{value: senderAmount}("");
+                require(success, "Sender refund failed");
+            }
+        } else {
+            if (recipientAmount > 0) {
+                IERC20(tokenAddress).transfer(streamRecipient, recipientAmount);
+            }
+            if (senderAmount > 0) {
+                IERC20(tokenAddress).transfer(streamSender, senderAmount);
+            }
         }
 
         emit CancelStream(_streamId, streamSender, streamRecipient, senderAmount, recipientAmount);
