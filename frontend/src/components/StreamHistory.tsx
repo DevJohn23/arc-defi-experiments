@@ -36,7 +36,7 @@ export function StreamHistory() {
                 const range = 5000n;
                 const fromBlock = currentBlock > range ? currentBlock - range : 0n;
 
-                console.log("🌟 Fetching logs for sender:", address, "from block:", fromBlock, "to block: latest"); // Add console log
+
                 const logs = await publicClient.getLogs({
                     address: ARC_STREAM_ADDRESS,
                     event: {
@@ -89,7 +89,7 @@ export function StreamHistory() {
                     toBlock: 'latest',
                 });
 
-                console.log("📜 Logs found:", logs); // Add console log
+
 
                 const parsedStreams = logs.map((log) => {
                     const { streamId, recipient, deposit, tokenAddress, duration } = (log as any).args;
@@ -97,8 +97,7 @@ export function StreamHistory() {
                 });
 
                 setStreams(parsedStreams.reverse());
-            } catch (error) {
-                console.error("❌ Error fetching logs:", error); // Add console log
+
             } finally {
                 setIsLoading(false); // Set loading to false after fetch
             }
