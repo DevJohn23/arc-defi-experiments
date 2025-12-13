@@ -31,7 +31,13 @@ export function StreamHistory() {
 
         const fetchStreams = async () => {
             try {
-                console.log("🌟 Fetching logs for sender:", address); // Add console log
+                // Get current block number
+                const currentBlock = await publicClient.getBlockNumber();
+                // Fetch last 5000 blocks (safe within the 10k limit)
+                const range = 5000n;
+                const fromBlock = currentBlock > range ? currentBlock - range : 0n;
+
+                console.log("🌟 Fetching logs for sender:", address, "from block:", fromBlock, "to block: latest"); // Add console log
                 const logs = await publicClient.getLogs({
                     address: ARC_STREAM_ADDRESS,
                     event: {
@@ -86,7 +92,7 @@ export function StreamHistory() {
                     args: {
                         sender: address,
                     },
-                    fromBlock: BigInt(0),
+                    fromBlock: fromBlock, // Use calculated fromBlock
                     toBlock: 'latest',
                 });
 
