@@ -4,7 +4,7 @@
 
 > "Testing the next generation of stablecoin-native blockchains."
 
-🟢 **Live dApp:** [Launch ArcStream Dashboard](https://arc-defi-experiments.vercel.app)
+🟢 **Live dApp:** [Launch ArcStream v2.1](https://arc-defi-experiments-evjw9ac3n-marcos-marinhos-projects.vercel.app/)
 
 ---
 
@@ -12,23 +12,26 @@
 
 I am a final-year technology student and developer diving deep into the **Arc ecosystem**. This repository serves as my engineering log/portfolio as I explore Arc's unique features, specifically:
 - **Native USDC as Gas**: Handling payable functions with stablecoins.
+- **Multi-Asset Architecture**: Supporting both Native USDC and ERC-20 tokens (like EURC) in a single protocol.
+- **Smart UX Patterns**: Implementing reactive UI that auto-detects `Allowance` states and handles the Approve/Create flow seamlessly.
 - **Time-Based Logic**: Using `block.timestamp` for financial constraints.
-- **Fullstack Web3**: Connecting Next.js frontends to Foundry-deployed contracts.
 
-**Tools used:** `Solidity 0.8.30` | `Foundry` | `Next.js` | `RainbowKit` | `Arc Testnet`
+**Tools used:** `Solidity 0.8.30` | `Foundry` | `Next.js` | `RainbowKit` | `Wagmi` | `Arc Testnet`
 
 ---
 
 ## 📂 Projects & Smart Contracts
 
-### 1. 🌊 ArcStream (Flagship)
-*File: `src/ArcStream.sol` | UI: `frontend/`*
+### 1. 🌊 ArcStream v2.1 (Flagship)
+*File: `src/ArcStream.sol` | UI: `src/app/page.tsx`*
 
-A **Payment Streaming Protocol** allowing real-time salary/vesting distribution.
-- **Logic:** Payers deposit USDC, which "flows" to the recipient second-by-second.
-- **Tech:** Advanced math for continuous liquidity calculation, integrated with a React/Next.js dashboard.
-- **Live Demo:** [🚀 Launch App](https://arc-defi-experiments.vercel.app)
-- **Contract:** [View on ArcScan](https://testnet.arcscan.app/address/0xaDB37Ac14b8714b449Be5eaE6cb59D2Fb4bBe0b1)
+A **Multi-Asset Payment Streaming Protocol** allowing real-time salary/vesting distribution.
+
+- **New in v2.1:** Added support for ERC-20 tokens (Mock EURC). The dApp features a "Smart Form" that automatically swaps between **Approve** and **Create Stream** buttons based on the user's allowance status, preventing stuck UI states.
+- **Logic:** Payers deposit Native USDC or Tokens, which "flow" to the recipient second-by-second.
+- **Tech:** Advanced math for continuous liquidity calculation + Reactive Frontend.
+- **Live Demo:** [🚀 Launch App](https://arc-defi-experiments-evjw9ac3n-marcos-marinhos-projects.vercel.app/)
+- **Contract:** [View on ArcScan](https://testnet.arcscan.app/address/0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524)
 
 ### 2. 🏦 ArcTimeLock (Advanced)
 *File: `src/ArcTimeLock.sol`*
@@ -61,7 +64,7 @@ All contracts have been deployed and verified on the **Arc Testnet**.
 
 | Contract | Feature | Explorer Link |
 |----------|---------|---------------|
-| **ArcStream** | Streaming / dApp | [View Contract](https://testnet.arcscan.app/address/0xaDB37Ac14b8714b449Be5eaE6cb59D2Fb4bBe0b1) |
+| **ArcStream v2.1** | Multi-Asset Streaming | [View Contract](https://testnet.arcscan.app/address/0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524) |
 | **ArcTimeLock** | Time-Logic / Structs | [View Contract](https://testnet.arcscan.app/address/0x2eCEeE24607F380FE5e704A3b642C574FDe1245B) |
 | **ArcVault** | Payable / Mappings | [View Contract](https://testnet.arcscan.app/address/0xc57f8ac1da34a8367c8005fEdDb47cE3D41cf456) |
 | **HelloArchitect** | State / Events | [View Contract](https://testnet.arcscan.app/address/0xC82827790c866A2f9b047568911686236025192E) |
@@ -111,7 +114,7 @@ Open http://localhost:3000 to view the dApp.
 
 **🔮 Future Goals**
 
-My goal is to build automated DeFi solutions and trading tools specifically for the Arc ecosystem, leveraging the stability of native USDC for predictable financial modeling.
+My goal is to build automated DeFi solutions and trading tools specifically for the Arc ecosystem, leveraging the stability of native USDC for predictable financial modeling. Next stop: Privacy features.
 
 ---
 
