@@ -1,6 +1,6 @@
 # 📈 Relatório de Progresso: Projeto ArcStream
 
-**Última Atualização:** sexta-feira, 12 de dezembro de 2025
+**Última Atualização:** sábado, 13 de dezembro de 2025
 
 Este documento serve como uma fonte central de verdade para o contexto, progresso e próximos passos do projeto ArcStream. Ele deve ser consultado no início de cada sessão para garantir a continuidade do trabalho.
 
@@ -31,6 +31,10 @@ Este documento serve como uma fonte central de verdade para o contexto, progress
         *   Implementar a lógica crítica para `amount` como o 2º argumento em ambos os casos (USDC Nativo e ERC-20).
         *   Definir corretamente o campo `value`: `value: isNative ? parsedAmount : BigInt(0)`.
     4.  **Atualizações Visuais:** O título e o rodapé do frontend foram atualizados para refletir a versão `v2.1`.
+    5.  **Correção de State (UI):** A lógica do componente `page.tsx` foi refatorada para resolver um bug onde o campo `Amount` não era limpo após a criação de um `stream`.
+        *   **Estados de Transação Separados:** Foram implementados `hooks` `useWaitForTransactionReceipt` distintos para as transações de `approve` e `createStream`, garantindo que seus estados (pendente, sucesso) sejam rastreados de forma independente.
+        *   **Efeito de Limpeza (Cleanup Effect):** Um `useEffect` foi adicionado para observar o sucesso da criação do `stream` (`isStreamSuccess`). Ao ser disparado, ele limpa os campos do formulário (`amount`, `recipient`, `duration`) e refaz a consulta de `allowance` do token.
+        *   **Desabilitar Inputs:** Os campos de entrada e botões agora são desabilitados enquanto uma transação está pendente (`isApprovePending` ou `isStreamPending`), prevenindo entradas do usuário que poderiam causar inconsistências de estado.
 
 ### Backend (Smart Contract) v2 - Multi-Asset Streaming
 

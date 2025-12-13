@@ -3,13 +3,13 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useState, useEffect } from 'react';
-import { parseEther, formatEther, zeroAddress } from 'viem';
+import { parseUnits, formatUnits, zeroAddress } from 'viem';
 import { arcStreamABI } from '@/abis/arcStream';
 import { erc20ABI } from '@/abis/erc20';
 
 // Contract Addresses
 const ARC_STREAM_ADDRESS = '0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524';
-const MOCK_EURC_ADDRESS = '0xFd2688cE369A543a6D4Ed6adE4350ebD13F88AC4';
+const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
 
 type TokenSymbol = 'NATIVE' | 'EURC';
 
@@ -30,7 +30,9 @@ export default function Home() {
   const [approveHash, setApproveHash] = useState<`0x${string}`>();
   const [createStreamHash, setCreateStreamHash] = useState<`0x${string}`>();
 
-  const parsedAmount = amount ? parseEther(amount) : BigInt(0);
+  const isNativeToken = selectedToken === 'NATIVE';
+  const decimals = isNativeToken ? 18 : 6;
+  const parsedAmount = amount ? parseUnits(amount, decimals) : BigInt(0);
 
   // Read claimable balance from stream
   const { data: claimableBalance, refetch: refetchClaimable } = useReadContract({
@@ -41,25 +43,25 @@ export default function Home() {
     query: { enabled: !!streamId },
   });
 
-  // Read MockEURC allowance for the ArcStream contract
+  // Read EURC allowance for the ArcStream contract
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     abi: erc20ABI,
-    address: MOCK_EURC_ADDRESS,
+    address: EURC_ADDRESS,
     functionName: 'allowance',
     args: [address!, ARC_STREAM_ADDRESS],
-    query: { enabled: !!address && selectedToken === 'EURC' },
+    query: { enabled: !!address && !isNativeToken },
   });
 
   // Watcher for the approve transaction
   const { isLoading: isApprovePending, isSuccess: isApproveSuccess } = 
-    useWaitForTransactionReceipt({ 
-      hash: approveHash, 
+    useWaitForTransactionReceipt({
+      hash: approveHash,
     });
 
   // Watcher for the create stream transaction
   const { isLoading: isStreamPending, isSuccess: isStreamSuccess } = 
-    useWaitForTransactionReceipt({ 
-      hash: createStreamHash, 
+    useWaitForTransactionReceipt({
+      hash: createStreamHash,
     });
 
   // Effect to refetch allowance after a successful approval
@@ -80,11 +82,13 @@ export default function Home() {
       
       // Small delay to let the blockchain settle before refetching allowance
       setTimeout(() => {
-        refetchAllowance(); 
-        console.log("🔄 Allowance refetched");
+        if (!isNativeToken) {
+          refetchAllowance(); 
+          console.log("🔄 Allowance refetched");
+        }
       }, 1000);
     }
-  }, [isStreamSuccess, refetchAllowance]);
+  }, [isStreamSuccess, isNativeToken, refetchAllowance]);
 
   // Effect to refetch claimable balance periodically
   useEffect(() => {
@@ -97,9 +101,9 @@ export default function Home() {
   const handleApprove = () => {
     writeContract({
       abi: erc20ABI,
-      address: MOCK_EURC_ADDRESS,
+      address: EURC_ADDRESS,
       functionName: 'approve',
-      args: [ARC_STREAM_ADDRESS, parsedAmount],
+      args: [ARC_STREAM_ADDRESS, parseUnits(amount, 6)],
     },
     {
       onSuccess: (hash) => setApproveHash(hash),
@@ -112,8 +116,7 @@ export default function Home() {
       return;
     }
 
-    const isNative = selectedToken === 'NATIVE';
-    const tokenAddress = isNative ? zeroAddress : MOCK_EURC_ADDRESS;
+    const tokenAddress = isNativeToken ? zeroAddress : EURC_ADDRESS;
     
     writeContract({
       abi: arcStreamABI,
@@ -125,7 +128,7 @@ export default function Home() {
         BigInt(duration),
         tokenAddress
       ],
-      value: isNative ? parsedAmount : BigInt(0),
+      value: isNativeToken ? parsedAmount : BigInt(0),
     },
     {
       onSuccess: (hash) => setCreateStreamHash(hash),
@@ -145,7 +148,7 @@ export default function Home() {
     });
   };
 
-  const needsApproval = selectedToken === 'EURC' && allowance !== undefined && allowance < parsedAmount;
+  const needsApproval = !isNativeToken && allowance !== undefined && allowance < parsedAmount;
   const isPending = isApprovePending || isStreamPending;
 
   return (
@@ -172,7 +175,7 @@ export default function Home() {
               disabled={isPending}
               className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${selectedToken === 'EURC' ? 'bg-purple-600' : 'bg-transparent hover:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              Mock EURC
+              EURC
             </button>
           </div>
 
@@ -187,7 +190,7 @@ export default function Home() {
             />
             <input
               type="number"
-              placeholder={`Amount (in ${selectedToken === 'NATIVE' ? 'USDC' : 'EURC'})`}
+              placeholder={`Amount (in ${isNativeToken ? 'USDC' : 'EURC'})`}
               className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -244,7 +247,7 @@ export default function Home() {
             <div className="bg-gray-700 p-4 rounded">
               <p className="text-gray-400">Claimable Balance:</p>
               <p className="text-2xl font-mono">
-                {claimableBalance !== undefined ? `${formatEther(claimableBalance)}` : '0.0'}
+                {claimableBalance !== undefined ? `${formatUnits(claimableBalance, decimals)}` : '0.0'}
               </p>
             </div>
             <button
@@ -258,7 +261,7 @@ export default function Home() {
         </div>
       </main>
       <footer className="w-full max-w-5xl mt-12 text-center text-gray-500">
-        <p>ArcStream Frontend v0.2.1</p>
+        <p>ArcStream Frontend v2.1</p>
       </footer>
     </div>
   );
