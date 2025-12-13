@@ -84,7 +84,7 @@ export function StreamHistory() {
           args: {
             sender: address,
           },
-          fromBlock: 0n,
+          fromBlock: BigInt(0),
           toBlock: 'latest',
         });
 
