@@ -15,7 +15,7 @@ type TokenSymbol = 'NATIVE' | 'EURC';
 
 export default function Home() {
   const { address } = useAccount();
-  const { writeContract, data: hash } = useWriteContract();
+  const { writeContract } = useWriteContract();
 
   // Component State
   const [selectedToken, setSelectedToken] = useState<TokenSymbol>('NATIVE');
@@ -26,6 +26,10 @@ export default function Home() {
   const [duration, setDuration] = useState('');
   const [streamId, setStreamId] = useState('');
   
+  // Transaction Hashes
+  const [approveHash, setApproveHash] = useState<`0x${string}`>();
+  const [createStreamHash, setCreateStreamHash] = useState<`0x${string}`>();
+
   const parsedAmount = amount ? parseEther(amount) : BigInt(0);
 
   // Read claimable balance from stream
@@ -46,18 +50,41 @@ export default function Home() {
     query: { enabled: !!address && selectedToken === 'EURC' },
   });
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = 
+  // Watcher for the approve transaction
+  const { isLoading: isApprovePending, isSuccess: isApproveSuccess } = 
     useWaitForTransactionReceipt({ 
-      hash, 
-    })
+      hash: approveHash, 
+    });
 
-  // Refetch allowance after a successful approval transaction
+  // Watcher for the create stream transaction
+  const { isLoading: isStreamPending, isSuccess: isStreamSuccess } = 
+    useWaitForTransactionReceipt({ 
+      hash: createStreamHash, 
+    });
+
+  // Effect to refetch allowance after a successful approval
   useEffect(() => {
-    if (isConfirmed) {
+    if (isApproveSuccess) {
+      console.log('✅ Approval successful! Refetching allowance...');
       refetchAllowance();
     }
-  }, [isConfirmed, refetchAllowance]);
-
+  }, [isApproveSuccess, refetchAllowance]);
+  
+  // The Cleanup Effect for creating a stream
+  useEffect(() => {
+    if (isStreamSuccess) {
+      console.log("✅ Stream Created! Cleaning up UI...");
+      setAmount('');
+      setRecipient('');
+      setDuration('');
+      
+      // Small delay to let the blockchain settle before refetching allowance
+      setTimeout(() => {
+        refetchAllowance(); 
+        console.log("🔄 Allowance refetched");
+      }, 1000);
+    }
+  }, [isStreamSuccess, refetchAllowance]);
 
   // Effect to refetch claimable balance periodically
   useEffect(() => {
@@ -73,6 +100,9 @@ export default function Home() {
       address: MOCK_EURC_ADDRESS,
       functionName: 'approve',
       args: [ARC_STREAM_ADDRESS, parsedAmount],
+    },
+    {
+      onSuccess: (hash) => setApproveHash(hash),
     });
   };
 
@@ -96,6 +126,9 @@ export default function Home() {
         tokenAddress
       ],
       value: isNative ? parsedAmount : BigInt(0),
+    },
+    {
+      onSuccess: (hash) => setCreateStreamHash(hash),
     });
   };
 
@@ -113,6 +146,7 @@ export default function Home() {
   };
 
   const needsApproval = selectedToken === 'EURC' && allowance !== undefined && allowance < parsedAmount;
+  const isPending = isApprovePending || isStreamPending;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-8 font-sans">
@@ -125,17 +159,18 @@ export default function Home() {
         <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
           <h2 className="text-2xl font-semibold mb-4">Create a New Stream</h2>
           
-          {/* Token Selector */}
           <div className="flex bg-gray-700 rounded-lg p-1 mb-4">
             <button 
               onClick={() => setSelectedToken('NATIVE')}
-              className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${selectedToken === 'NATIVE' ? 'bg-purple-600' : 'bg-transparent hover:bg-gray-600'}`}
+              disabled={isPending}
+              className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${selectedToken === 'NATIVE' ? 'bg-purple-600' : 'bg-transparent hover:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               Native USDC
             </button>
             <button 
               onClick={() => setSelectedToken('EURC')}
-              className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${selectedToken === 'EURC' ? 'bg-purple-600' : 'bg-transparent hover:bg-gray-600'}`}
+              disabled={isPending}
+              className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${selectedToken === 'EURC' ? 'bg-purple-600' : 'bg-transparent hover:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               Mock EURC
             </button>
@@ -145,41 +180,44 @@ export default function Home() {
             <input
               type="text"
               placeholder="Recipient Address (0x...)"
-              className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
+              disabled={isPending}
             />
             <input
               type="number"
               placeholder={`Amount (in ${selectedToken === 'NATIVE' ? 'USDC' : 'EURC'})`}
-              className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              disabled={isPending}
             />
             <input
               type="number"
               placeholder="Duration (in seconds)"
-              className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
+              disabled={isPending}
             />
 
             {address ? (
               needsApproval ? (
                 <button
                   onClick={handleApprove}
-                  disabled={isConfirming}
+                  disabled={isPending || !amount}
                   className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-4 rounded transition duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
-                  {isConfirming ? 'Approving...' : `Approve ${amount} EURC`}
+                  {isApprovePending ? 'Approving...' : `Approve ${amount} EURC`}
                 </button>
               ) : (
                 <button
                   onClick={handleCreateStream}
-                  disabled={isConfirming}
+                  disabled={isPending || !amount || !recipient || !duration}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded transition duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
-                  {isConfirming ? 'Confirming...' : 'Start Stream'}
+                  {isStreamPending ? 'Confirming...' : 'Start Stream'}
                 </button>
               )
             ) : (
