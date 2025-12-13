@@ -14,7 +14,6 @@ interface Stream {
   recipient: string;
   deposit: bigint;
   tokenAddress: string;
-  startTime: bigint;
   duration: bigint;
 }
 
@@ -76,12 +75,6 @@ export function StreamHistory() {
                             {
                                 "indexed": false,
                                 "internalType": "uint256",
-                                "name": "startTime", // Added missing startTime
-                                "type": "uint256"
-                            },
-                            {
-                                "indexed": false,
-                                "internalType": "uint256",
                                 "name": "duration",
                                 "type": "uint256"
                             }
@@ -99,8 +92,8 @@ export function StreamHistory() {
                 console.log("📜 Logs found:", logs); // Add console log
 
                 const parsedStreams = logs.map((log) => {
-                    const { streamId, recipient, deposit, tokenAddress, startTime, duration } = (log as any).args;
-                    return { streamId, recipient, deposit, tokenAddress, startTime, duration };
+                    const { streamId, recipient, deposit, tokenAddress, duration } = (log as any).args;
+                    return { streamId, recipient, deposit, tokenAddress, duration };
                 });
 
                 setStreams(parsedStreams.reverse());
@@ -123,12 +116,6 @@ export function StreamHistory() {
             return { name: 'USDC', decimals: 18 };
         }
         return { name: 'Unknown', decimals: 18 };
-    };
-
-    const getStatus = (startTime: bigint, duration: bigint) => {
-        const stopTime = startTime + duration;
-        const now = BigInt(Math.floor(Date.now() / 1000));
-        return now > stopTime ? 'Completed ✅' : 'Streaming ⏳';
     };
 
     if (!address) {
@@ -155,7 +142,7 @@ export function StreamHistory() {
                 Token
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                Status
+                Duration
               </th>
             </tr>
           </thead>
@@ -175,7 +162,7 @@ export function StreamHistory() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 truncate max-w-xs">{stream.recipient}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{formatUnits(stream.deposit, token.decimals)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{token.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{getStatus(stream.startTime, stream.duration)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{stream.duration.toString()}s</td>
                   </tr>
                 );
               })

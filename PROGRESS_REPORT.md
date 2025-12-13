@@ -40,6 +40,8 @@ Este documento serve como uma fonte central de verdade para o contexto, progress
         *   Foi implementada uma variável `decimals` dinâmica em `frontend/src/app/page.tsx` para alternar entre 18 (para USDC nativo) e 6 (para EURC) casas decimais.
         *   As funções `parseEther` e `formatEther` foram substituídas por `parseUnits` e `formatUnits` (da biblioteca `viem`), utilizando a variável `decimals` para garantir o tratamento correto dos valores de token.
         *   A lógica de aprovação (`handleApprove`) foi ajustada para usar 6 casas decimais, e a lógica de criação de stream (`handleCreateStream`) e exibição de saldos/allowances (`claimableBalance`, `allowance`) também foi atualizada para considerar a nova dinâmica de decimais.
+    7.  **Correção de Erro RPC (`eth_getLogs`):** A lógica de busca de histórico de `streams` no componente `StreamHistory.tsx` foi ajustada para respeitar o limite de 10.000 blocos do RPC da Arc Testnet.
+        *   A busca agora é limitada aos últimos 5.000 blocos, calculando o `fromBlock` dinamicamente a partir do número do bloco mais recente (`client.getBlockNumber()`). Isso evita o erro `413` (request too large) e garante que o histórico de `streams` recentes seja carregado de forma confiável.
 
 ### Backend (Smart Contract) v2 - Multi-Asset Streaming
 
