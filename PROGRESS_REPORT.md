@@ -19,6 +19,23 @@ Este documento serve como uma fonte central de verdade para o contexto, progress
 
 ## ✅ Progresso Realizado
 
+### ArcLink Protocol - Secret Links
+
+1.  **Contrato Principal (`src/ArcLink.sol`):**
+    *   **Status:** Concluído.
+    *   **Descrição:** Novo contrato inteligente para permitir o envio de criptoativos via "links secretos". Os usuários depositam fundos com um hash de uma senha secreta, e o destinatário pode reivindicar os fundos fornecendo a senha original.
+    *   **Funcionalidades Implementadas:**
+        *   `struct Link`: Armazena detalhes do link (remetente, token, valor, status de reivindicação).
+        *   `mapping(bytes32 => Link) public links`: Mapeamento do hash secreto para o `Link` correspondente.
+        *   `createLink()`: Permite ao remetente criar um link, depositando fundos (nativo ou ERC-20) e associando-os a um `secretHash`.
+        *   `claimLink()`: Permite ao destinatário reivindicar os fundos de um link fornecendo o segredo correto.
+        *   `refundLink()`: Permite ao remetente original recuperar os fundos se o link não tiver sido reivindicado.
+    *   **Segurança:** Utiliza o padrão "Checks-Effects-Interactions" para mitigar riscos de reentrancy.
+
+2.  **Script de Deploy (`script/ArcLink.s.sol`):**
+    *   **Status:** Concluído.
+    *   **Descrição:** Um script de deploy padrão do Foundry foi criado para facilitar a publicação do contrato `ArcLink.sol` na Arc Testnet. Ele carrega a chave privada do deployer de uma variável de ambiente e loga o endereço do contrato implantado.
+
 ### Frontend (dApp) v2.1 (Final Fix)
 
 - **Status:** Concluído
