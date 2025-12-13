@@ -35,6 +35,11 @@ Este documento serve como uma fonte central de verdade para o contexto, progress
         *   **Estados de Transação Separados:** Foram implementados `hooks` `useWaitForTransactionReceipt` distintos para as transações de `approve` e `createStream`, garantindo que seus estados (pendente, sucesso) sejam rastreados de forma independente.
         *   **Efeito de Limpeza (Cleanup Effect):** Um `useEffect` foi adicionado para observar o sucesso da criação do `stream` (`isStreamSuccess`). Ao ser disparado, ele limpa os campos do formulário (`amount`, `recipient`, `duration`) e refaz a consulta de `allowance` do token.
         *   **Desabilitar Inputs:** Os campos de entrada e botões agora são desabilitados enquanto uma transação está pendente (`isApprovePending` ou `isStreamPending`), prevenindo entradas do usuário que poderiam causar inconsistências de estado.
+    6.  **Suporte a EURC Oficial (6 Decimais):** O frontend foi atualizado para integrar o token EURC oficial (com 6 casas decimais) e manusear a diferença de decimais em relação ao USDC nativo (18 casas decimais).
+        *   O endereço do `MOCK_EURC_ADDRESS` foi substituído pelo `EURC_ADDRESS` oficial: `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`.
+        *   Foi implementada uma variável `decimals` dinâmica em `frontend/src/app/page.tsx` para alternar entre 18 (para USDC nativo) e 6 (para EURC) casas decimais.
+        *   As funções `parseEther` e `formatEther` foram substituídas por `parseUnits` e `formatUnits` (da biblioteca `viem`), utilizando a variável `decimals` para garantir o tratamento correto dos valores de token.
+        *   A lógica de aprovação (`handleApprove`) foi ajustada para usar 6 casas decimais, e a lógica de criação de stream (`handleCreateStream`) e exibição de saldos/allowances (`claimableBalance`, `allowance`) também foi atualizada para considerar a nova dinâmica de decimais.
 
 ### Backend (Smart Contract) v2 - Multi-Asset Streaming
 
