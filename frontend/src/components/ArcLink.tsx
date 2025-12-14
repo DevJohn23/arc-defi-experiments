@@ -34,6 +34,29 @@ const arcLinkAbi = [
     }
 ];
 
+// Helper component for copying text to clipboard
+function CopyToClipboardButton({ textToCopy }: { textToCopy: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000); // Reset "Copied!" message after 2 seconds
+            })
+            .catch(err => console.error('Failed to copy text: ', err));
+    };
+
+    return (
+        <button
+            onClick={handleCopy}
+            className="mt-2 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 rounded-md py-2 font-semibold text-sm"
+        >
+            {copied ? 'Copied!' : 'Copy Link'}
+        </button>
+    );
+}
+
 export function ArcLink() {
     const { address } = useAccount();
     const { writeContract: writeCreateLink, data: createHash, error: createError, isPending: isCreatingPending, reset: resetCreateLink } = useWriteContract();
@@ -57,14 +80,10 @@ export function ArcLink() {
 
     useEffect(() => {
         if (createIsConfirmed) {
-            setTimeout(() => {
-                setCreateAmount('');
-                setCreateSecret('');
-                resetCreateLink();
-                setGeneratedLink(''); // Clear the generated link as well
-            }, 5000); // Display success message for 5 seconds
+            // Keep the link visible, do not reset automatically.
+            // Form inputs will be reset if user changes createAmount or createSecret due to other useEffect.
         }
-    }, [createIsConfirmed, resetCreateLink, setCreateAmount, setCreateSecret, setGeneratedLink]);
+    }, [createIsConfirmed]);
 
     useEffect(() => {
         if (claimIsConfirmed) {
@@ -182,6 +201,7 @@ export function ArcLink() {
                             className="w-full bg-gray-800 border border-gray-600 rounded-md px-2 py-1 mt-2 text-sm"
                             onFocus={(e) => e.target.select()}
                         />
+                        <CopyToClipboardButton textToCopy={generatedLink} />
                     </div>
                 )}
                 {createError && (
