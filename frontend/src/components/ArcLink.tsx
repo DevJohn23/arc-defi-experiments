@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { keccak256, encodePacked, parseUnits, zeroAddress, toHex } from 'viem';
+import { keccak256, encodePacked, parseUnits, parseEther, zeroAddress, toHex } from 'viem';
 
 // ArcLink Contract Address
 const ARC_LINK_ADDRESS = '0x5241c547b20AFf18Dcdd5CeB3bd12117643a8Fc2';
@@ -76,36 +76,39 @@ export function ArcLink() {
     }, [claimIsConfirmed, resetClaimLink, setClaimSecret]);
 
     const handleCreateLink = async () => {
-        if (!createAmount || !createSecret) {
-            alert('Please provide an amount and a secret.');
-            return;
-        }
+        if (!createAmount || !createSecret) return;
 
-        const isNative = createTokenType === 'usdc';
-        const secretHash = keccak256(encodePacked(['string'], [createSecret]));
-        
-        const claimUrl = `${window.location.origin}?secret=${encodeURIComponent(createSecret)}`;
-        setGeneratedLink(claimUrl);
+        resetCreateLink(); // Clear previous hash and error
 
-        if (isNative) {
-            const parsedAmount = parseUnits(createAmount, 18);
+        try {
+            // 1. Generate Hash
+            const hash = keccak256(encodePacked(['string'], [createSecret]));
+
+            // 2. Parse Amount (Arc uses 18 decimals for Native, 6 for EURC)
+            const parsedAmountNative = parseEther(createAmount);
+            const parsedAmountEurc = parseUnits(createAmount, 6);
+
+            // 3. Determine Token Address (Zero Address for Native)
+            const tokenAddr = createTokenType === 'usdc'
+                ? '0x0000000000000000000000000000000000000000'
+                : EURC_ADDRESS;
+
+            // 4. Send Transaction
             await writeCreateLink({
                 address: ARC_LINK_ADDRESS,
                 abi: arcLinkAbi,
                 functionName: 'createLink',
-                args: [secretHash, '0x0000000000000000000000000000000000000000', parsedAmount],
-                value: parsedAmount,
+                args: [hash, tokenAddr, createTokenType === 'usdc' ? parsedAmountNative : parsedAmountEurc],
+                // CRITICAL: If Native, attach ETH/USDC as value. If ERC20, value is 0.
+                value: createTokenType === 'usdc' ? parsedAmountNative : 0n,
             });
-        } else {
-            // ERC20 Path (EURC) - NOTE: This will fail without an approval step.
-            const parsedAmount = parseUnits(createAmount, 6);
-            await writeCreateLink({
-                address: ARC_LINK_ADDRESS,
-                abi: arcLinkAbi,
-                functionName: 'createLink',
-                args: [secretHash, EURC_ADDRESS, parsedAmount],
-                value: 0n,
-            });
+
+            // Generate the claimable link URL for sharing after transaction is sent
+            const claimUrl = `${window.location.origin}?secret=${encodeURIComponent(createSecret)}`;
+            setGeneratedLink(claimUrl);
+
+        } catch (error) {
+            console.error("Creation failed:", error);
         }
     };
     
