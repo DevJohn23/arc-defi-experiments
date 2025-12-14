@@ -5,7 +5,7 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagm
 import { keccak256, encodePacked, parseUnits, parseEther, zeroAddress, toHex } from 'viem';
 
 // ArcLink Contract Address
-const ARC_LINK_ADDRESS = '0x5241c547b20AFf18Dcdd5CeB3bd12117643a8Fc2';
+const ARC_LINK_ADDRESS = '0x74D27f868FA5253D89e9C65527aD3397860bEE8e';
 // EURC Token Address (replace with actual if different, using official from progress report)
 const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
 
@@ -101,7 +101,6 @@ export function ArcLink() {
                 args: [hash, tokenAddr, createTokenType === 'usdc' ? parsedAmountNative : parsedAmountEurc],
                 // CRITICAL: If Native, attach ETH/USDC as value. If ERC20, value is 0.
                 value: createTokenType === 'usdc' ? parsedAmountNative : 0n,
-                gas: 500000n, // FORCE MANUAL GAS LIMIT
             });
 
             // Generate the claimable link URL for sharing after transaction is sent
