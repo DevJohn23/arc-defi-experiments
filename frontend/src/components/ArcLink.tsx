@@ -45,6 +45,9 @@ export function ArcLink() {
     const [createTokenType, setCreateTokenType] = useState<'usdc' | 'eurc'>('usdc');
     const [generatedLink, setGeneratedLink] = useState('');
 
+    // --- CLAIM LINK STATE ---
+    const [claimSecret, setClaimSecret] = useState('');
+
     const { isLoading: createIsConfirming, isSuccess: createIsConfirmed } = useWaitForTransactionReceipt({ hash: createHash });
     const { isLoading: claimIsConfirming, isSuccess: claimIsConfirmed } = useWaitForTransactionReceipt({ hash: claimHash });
 
