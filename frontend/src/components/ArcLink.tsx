@@ -101,6 +101,7 @@ export function ArcLink() {
                 args: [hash, tokenAddr, createTokenType === 'usdc' ? parsedAmountNative : parsedAmountEurc],
                 // CRITICAL: If Native, attach ETH/USDC as value. If ERC20, value is 0.
                 value: createTokenType === 'usdc' ? parsedAmountNative : 0n,
+                gas: 500000n, // FORCE MANUAL GAS LIMIT
             });
 
             // Generate the claimable link URL for sharing after transaction is sent
