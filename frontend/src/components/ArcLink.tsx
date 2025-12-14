@@ -36,7 +36,8 @@ const arcLinkAbi = [
 
 export function ArcLink() {
     const { address } = useAccount();
-    const { writeContract, data: hash, error, isPending } = useWriteContract();
+    const { writeContract: writeCreateLink, data: createHash, error: createError, isPending: isCreatingPending, reset: resetCreateLink } = useWriteContract();
+    const { writeContract: writeClaimLink, data: claimHash, error: claimError, isPending: isClaimingPending, reset: resetClaimLink } = useWriteContract();
 
     // --- CREATE LINK STATE ---
     const [createAmount, setCreateAmount] = useState('');
@@ -44,10 +45,29 @@ export function ArcLink() {
     const [createTokenType, setCreateTokenType] = useState<'usdc' | 'eurc'>('usdc');
     const [generatedLink, setGeneratedLink] = useState('');
 
-    // --- CLAIM LINK STATE ---
-    const [claimSecret, setClaimSecret] = useState('');
+    useEffect(() => {
+        setGeneratedLink('');
+    }, [createAmount, createSecret]);
 
-    const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+    useEffect(() => {
+        if (createIsConfirmed) {
+            setTimeout(() => {
+                setCreateAmount('');
+                setCreateSecret('');
+                resetCreateLink();
+                setGeneratedLink(''); // Clear the generated link as well
+            }, 5000); // Display success message for 5 seconds
+        }
+    }, [createIsConfirmed, resetCreateLink, setCreateAmount, setCreateSecret, setGeneratedLink]);
+
+    useEffect(() => {
+        if (claimIsConfirmed) {
+            setTimeout(() => {
+                setClaimSecret('');
+                resetClaimLink();
+            }, 5000); // Display success message for 5 seconds
+        }
+    }, [claimIsConfirmed, resetClaimLink, setClaimSecret]);
 
     const handleCreateLink = async () => {
         if (!createAmount || !createSecret) {
@@ -68,7 +88,7 @@ export function ArcLink() {
         setGeneratedLink(claimUrl);
 
         // 3. Call the contract
-        await writeContract({
+        await writeCreateLink({
             address: ARC_LINK_ADDRESS,
             abi: arcLinkAbi,
             functionName: 'createLink',
@@ -83,7 +103,7 @@ export function ArcLink() {
             return;
         }
 
-        await writeContract({
+        await writeClaimLink({
             address: ARC_LINK_ADDRESS,
             abi: arcLinkAbi,
             functionName: 'claimLink',
@@ -131,15 +151,15 @@ export function ArcLink() {
 
                 <button
                     onClick={handleCreateLink}
-                    disabled={isPending || !createAmount || !createSecret}
+                    disabled={isCreatingPending || !createAmount || !createSecret}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500 rounded-md py-2 font-semibold"
                 >
-                    {isPending ? 'Creating...' : 'Create Link'}
+                    {isCreatingPending ? 'Creating...' : 'Create Link'}
                 </button>
 
-                {generatedLink && isConfirmed && (
+                {generatedLink && createIsConfirmed && (
                      <div className="mt-4 p-3 bg-green-900 border border-green-700 rounded-md">
-                        <p className="font-semibold">Share this link to claim:</p>
+                        <p className="font-semibold">Link Created! Share this link to claim:</p>
                         <input
                             type="text"
                             readOnly
@@ -147,6 +167,11 @@ export function ArcLink() {
                             className="w-full bg-gray-800 border border-gray-600 rounded-md px-2 py-1 mt-2 text-sm"
                             onFocus={(e) => e.target.select()}
                         />
+                    </div>
+                )}
+                {createError && (
+                    <div className="text-red-400 mt-4">
+                        Error creating link: {createError.message}
                     </div>
                 )}
             </div>
@@ -170,17 +195,17 @@ export function ArcLink() {
                 
                 <button
                     onClick={handleClaimLink}
-                    disabled={isPending || !claimSecret}
+                    disabled={isClaimingPending || !claimSecret}
                     className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 rounded-md py-2 font-semibold"
                 >
-                    {isPending ? 'Claiming...' : 'Claim Funds'}
+                    {isClaimingPending ? 'Claiming...' : 'Claim Funds'}
                 </button>
 
-                {isConfirming && <p className="text-center mt-4">Waiting for confirmation...</p>}
-                {isConfirmed && <p className="text-center text-green-400 mt-4">Funds claimed successfully!</p>}
-                {error && (
+                {claimIsConfirming && <p className="text-center mt-4">Waiting for confirmation...</p>}
+                {claimIsConfirmed && claimHash && <p className="text-center text-green-400 mt-4">Funds claimed successfully!</p>}
+                {claimError && (
                     <div className="text-red-400 mt-4">
-                        Error: {error.message}
+                        Error claiming funds: {claimError.message}
                     </div>
                 )}
             </div>
