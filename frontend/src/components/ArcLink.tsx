@@ -82,25 +82,31 @@ export function ArcLink() {
         }
 
         const isNative = createTokenType === 'usdc';
-        const decimals = isNative ? 18 : 6;
-        const tokenAddress = isNative ? zeroAddress : EURC_ADDRESS;
-        const parsedAmount = parseUnits(createAmount, decimals);
-
-        // 1. Hash the secret on the client-side
         const secretHash = keccak256(encodePacked(['string'], [createSecret]));
         
-        // 2. Generate the claimable link URL for sharing
         const claimUrl = `${window.location.origin}?secret=${encodeURIComponent(createSecret)}`;
         setGeneratedLink(claimUrl);
 
-        // 3. Call the contract
-        await writeCreateLink({
-            address: ARC_LINK_ADDRESS,
-            abi: arcLinkAbi,
-            functionName: 'createLink',
-            args: [secretHash, tokenAddress, parsedAmount],
-            value: isNative ? parsedAmount : BigInt(0),
-        });
+        if (isNative) {
+            const parsedAmount = parseUnits(createAmount, 18);
+            await writeCreateLink({
+                address: ARC_LINK_ADDRESS,
+                abi: arcLinkAbi,
+                functionName: 'createLink',
+                args: [secretHash, '0x0000000000000000000000000000000000000000', parsedAmount],
+                value: parsedAmount,
+            });
+        } else {
+            // ERC20 Path (EURC) - NOTE: This will fail without an approval step.
+            const parsedAmount = parseUnits(createAmount, 6);
+            await writeCreateLink({
+                address: ARC_LINK_ADDRESS,
+                abi: arcLinkAbi,
+                functionName: 'createLink',
+                args: [secretHash, EURC_ADDRESS, parsedAmount],
+                value: 0n,
+            });
+        }
     };
     
     const handleClaimLink = async () => {
