@@ -4,7 +4,7 @@
 
 > "Testing the next generation of stablecoin-native blockchains."
 
-🟢 **Live dApp:** [Launch Arc DeFi Suite](https://arc-defi-experiments-88iku05tc-marcos-marinhos-projects.vercel.app/)
+🟢 **Live dApp:** [Launch Arc DeFi Suite](https://arc-defi-experiments.vercel.app/)
 
 ---
 
