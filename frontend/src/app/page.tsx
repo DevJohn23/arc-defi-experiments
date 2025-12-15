@@ -7,14 +7,15 @@ import { parseUnits, formatUnits, zeroAddress } from 'viem';
 import { arcStreamABI } from '@/abis/arcStream';
 import { erc20ABI } from '@/abis/erc20';
 import { StreamHistory } from '@/components/StreamHistory';
-import { ArcLink } from '@/components/ArcLink'; // Import ArcLink
+import { ArcLink } from '@/components/ArcLink';
+import { ArcDCA } from '@/components/ArcDCA'; // 1. Import ArcDCA
 
 // Contract Addresses
 const ARC_STREAM_ADDRESS = '0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524';
 const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
 
 type TokenSymbol = 'NATIVE' | 'EURC';
-type ActiveTab = 'stream' | 'link';
+type ActiveTab = 'stream' | 'link' | 'dca'; // 2. Add 'dca' to ActiveTab type
 
 export default function Home() {
   const { address } = useAccount();
@@ -163,23 +164,29 @@ export default function Home() {
       </header>
 
       <main className="w-full max-w-5xl">
-        {/* Tab Navigation */}
+        {/* 3. Tab Navigation Update */}
         <div className="flex justify-center border-b border-gray-700 mb-8">
           <button
             onClick={() => setActiveTab('stream')}
-            className={`px-6 py-3 font-semibold ${activeTab === 'stream' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400'}`}
+            className={`px-6 py-3 font-semibold ${activeTab === 'stream' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-gray-200'}`}
           >
             ArcStream
           </button>
           <button
             onClick={() => setActiveTab('link')}
-            className={`px-6 py-3 font-semibold ${activeTab === 'link' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400'}`}
+            className={`px-6 py-3 font-semibold ${activeTab === 'link' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-gray-200'}`}
           >
             ArcLink
           </button>
+          <button
+            onClick={() => setActiveTab('dca')}
+            className={`px-6 py-3 font-semibold ${activeTab === 'dca' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            🤖 Auto-Trade
+          </button>
         </div>
 
-        {/* Conditional Rendering based on activeTab */}
+        {/* 4. Conditional Rendering Update */}
         {activeTab === 'stream' && (
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -289,6 +296,8 @@ export default function Home() {
         )}
         
         {activeTab === 'link' && <ArcLink />}
+
+        {activeTab === 'dca' && <ArcDCA />}
 
       </main>
       <footer className="w-full max-w-5xl mt-12 text-center text-gray-500">
