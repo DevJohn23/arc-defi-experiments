@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseUnits, formatUnits } from 'viem';
+import { parseUnits } from 'viem';
 import { erc20ABI } from '@/abis/erc20';
 import { ARC_DCA_ADDRESS, USDC_ADDRESS, MOCK_WETH_ADDRESS, arcDCAAbi } from '@/lib/constants';
 
@@ -92,6 +92,7 @@ export function ArcDCA() {
       return;
     }
     
+    // --- AQUI ESTÁ A CORREÇÃO (Gas Limit Manual) ---
     writeContract({
       abi: arcDCAAbi,
       address: ARC_DCA_ADDRESS,
@@ -103,6 +104,7 @@ export function ArcDCA() {
         BigInt(interval),
         parsedTotalDeposit,
       ],
+      gas: 2000000n, // <--- ADICIONADO: Força o limite de gás para evitar erro de RPC
     },
     {
       onSuccess: (hash) => setCreatePositionHash(hash),
