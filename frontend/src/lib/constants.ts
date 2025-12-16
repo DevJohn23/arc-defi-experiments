@@ -5,7 +5,7 @@ export const MOCK_WETH_ADDRESS = '0x6FE689cA658F9430cd5F0E31a48AFCE591907298';
 
 // NOTA: O endereço USDC foi encontrado no histórico do projeto,
 // mas não estava sendo usado no frontend. Adicionando para o componente DCA.
-export const USDC_ADDRESS = '0x481490152281347052521953123120F527845366';
+export const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 
 
 // 2. ABI do Contrato ArcDCA
