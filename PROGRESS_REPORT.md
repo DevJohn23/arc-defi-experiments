@@ -1,6 +1,6 @@
 # 📈 Relatório de Progresso: Projeto ArcStream
 
-**Última Atualização:** sábado, 13 de dezembro de 2025
+**Última Atualização:** domingo, 15 de dezembro de 2025
 
 Este documento serve como uma fonte central de verdade para o contexto, progresso e próximos passos do projeto ArcStream. Ele deve ser consultado no início de cada sessão para garantir a continuidade do trabalho.
 
@@ -59,6 +59,24 @@ Este documento serve como uma fonte central de verdade para o contexto, progress
         *   A lógica de aprovação (`handleApprove`) foi ajustada para usar 6 casas decimais, e a lógica de criação de stream (`handleCreateStream`) e exibição de saldos/allowances (`claimableBalance`, `allowance`) também foi atualizada para considerar a nova dinâmica de decimais.
     7.  **Correção de Erro RPC (`eth_getLogs`):** A lógica de busca de histórico de `streams` no componente `StreamHistory.tsx` foi ajustada para respeitar o limite de 10.000 blocos do RPC da Arc Testnet.
         *   A busca agora é limitada aos últimos 5.000 blocos, calculando o `fromBlock` dinamicamente a partir do número do bloco mais recente (`client.getBlockNumber()`). Isso evita o erro `413` (request too large) e garante que o histórico de `streams` recentes seja carregado de forma confiável.
+
+### Frontend (dApp) - Integração ArcDCA (Auto-Trade Bot)
+
+- **Status:** Concluído
+- **Descrição:** Implementação da funcionalidade de bot de investimento automático (Dollar Cost Averaging - DCA), permitindo ao usuário depositar USDC e comprar WETH automaticamente em intervalos definidos.
+- **Funcionalidades Implementadas:**
+    1.  **Criação de `frontend/src/lib/constants.ts`:**
+        *   Adicionado o `ARC_DCA_ADDRESS`, `MOCK_SWAP_ADDRESS`, `MOCK_WETH_ADDRESS` e `USDC_ADDRESS` (com o ABI correspondente).
+        *   Definida a ABI do contrato `ArcDCA` para as funções `createPosition`, `executeDCA`, `positions` e `nextPositionId`.
+    2.  **Criação do Componente `frontend/src/components/ArcDCA.tsx`:**
+        *   Desenvolvido um formulário com inputs para "Total Deposit (USDC)", "Buy Amount per Trade (USDC)" e "Interval (seconds)".
+        *   Lógica de botão inteligente implementada para gerenciar o fluxo de `approve` USDC e `createPosition` no contrato `ArcDCA`, utilizando `useReadContract` para verificar o `allowance` e `useWriteContract` para as transações.
+        *   Feedback visual (`isLoading`, `isSuccess`) para as transações de aprovação e criação de posição.
+        *   Estilo consistente com o restante do dApp (tema dark/slate).
+    3.  **Atualização de `frontend/src/app/page.tsx`:**
+        *   Importado o novo componente `ArcDCA`.
+        *   Adicionada uma nova aba "🤖 Auto-Trade" à navegação principal do dApp.
+        *   A renderização do componente `ArcDCA` é condicional à seleção da nova aba.
 
 ### Backend (Smart Contract) v2 - Multi-Asset Streaming
 
