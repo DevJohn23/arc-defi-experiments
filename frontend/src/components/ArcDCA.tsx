@@ -11,7 +11,7 @@ const USDC_DECIMALS = 6;
 
 export function ArcDCA() {
   const { address } = useAccount();
-  const { writeContract, data: writeData } = useWriteContract();
+  const { writeContract } = useWriteContract();
 
   // --- FORM STATES ---
   const [totalDeposit, setTotalDeposit] = useState('');
@@ -39,26 +39,47 @@ export function ArcDCA() {
     functionName: 'nextPositionId',
   });
 
-  // 3. LEITURA EM MASSA: Puxar dados de todas as posições para filtrar as suas
-  // Cria um array de IDs: [0, 1, 2, ... nextPositionId - 1]
-  const ids = nextPositionId ? Array.from({ length: Number(nextPositionId) }, (_, i) => BigInt(i)) : [];
+  // 3. LEITURA EM MASSA: Puxar dados de todas as posições
+  // Cria um array de IDs com segurança de tipo
+  const count = nextPositionId ? Number(nextPositionId) : 0;
+  const ids = Array.from({ length: count }, (_, i) => BigInt(i));
   
   const { data: allPositions, refetch: refetchPositions } = useReadContracts({
     contracts: ids.map(id => ({
-      abi: arcDCAAbi,
-      address: ARC_DCA_ADDRESS,
+      abi: arcDCAAbi as any, // "as any" resolve o conflito de tipos estritos do TS
+      address: ARC_DCA_ADDRESS as `0x${string}`,
       functionName: 'positions',
       args: [id],
     })),
     query: { enabled: ids.length > 0 }
   });
 
-  // Filtra apenas as posições do usuário logado
-  const myPositions = allPositions?.map((result, index) => ({ 
-    ...result.result, 
-    id: BigInt(index),
-    status: result.status 
-  })).filter(pos => pos.status === 'success' && pos.owner === address);
+  // 4. FILTRAGEM E MAPEAMENTO SEGURO
+  // Aqui resolvemos o erro de "Spread types". Mapeamos manualmente os campos.
+  const myPositions = allPositions
+    ?.map((result, index) => {
+      if (result.status !== 'success' || !result.result) return null;
+      
+      // O resultado vem como um Array ou Objeto, dependendo do Viem.
+      // Vamos tratar como 'any' e mapear manualmente para garantir.
+      const data = result.result as any;
+
+      // Se o retorno for um array (comum em smart contracts):
+      // [owner, tokenIn, tokenOut, amountPerTrade, interval, lastExecution, totalBalance, isActive]
+      // Se for objeto, acessamos as chaves. O TS não sabe, então forçamos a leitura segura:
+      return {
+        id: BigInt(index),
+        owner: data[0] || data.owner,
+        tokenIn: data[1] || data.tokenIn,
+        tokenOut: data[2] || data.tokenOut,
+        amountPerTrade: data[3] || data.amountPerTrade,
+        interval: data[4] || data.interval,
+        lastExecution: data[5] || data.lastExecution,
+        totalBalance: data[6] || data.totalBalance,
+        isActive: data[7] ?? data.isActive, // Use ?? para booleanos
+      };
+    })
+    .filter((pos) => pos !== null && pos.owner === address);
 
   // --- WATCHER DE TRANSAÇÃO ---
   const { isLoading: isTxConfirming, isSuccess: isTxSuccess } =

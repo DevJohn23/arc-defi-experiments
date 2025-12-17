@@ -3,12 +3,11 @@ export const ARC_DCA_ADDRESS = '0xEbbb3e8630D69ab25Cf55A4B78cf94cE9F3d376A';
 export const MOCK_SWAP_ADDRESS = '0xdaB8B474d6BC63A44e410f8174E796130988F7eD';
 export const MOCK_WETH_ADDRESS = '0x6FE689cA658F9430cd5F0E31a48AFCE591907298';
 
-// NOTA: O endereço USDC foi encontrado no histórico do projeto,
-// mas não estava sendo usado no frontend. Adicionando para o componente DCA.
+// Endereço Oficial do Native Token (USDC) como ERC-20 na Arc (Precompile)
 export const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 
-
 // 2. ABI do Contrato ArcDCA
+// O 'as const' no final é obrigatório para o Wagmi/Viem entenderem os tipos
 export const arcDCAAbi = [
   {
     "type": "function",
@@ -78,4 +77,4 @@ export const arcDCAAbi = [
     ],
     "anonymous": false
   }
-];
+] as const;
