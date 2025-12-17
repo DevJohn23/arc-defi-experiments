@@ -69,13 +69,13 @@ export function ArcDCA() {
       // Se for objeto, acessamos as chaves. O TS não sabe, então forçamos a leitura segura:
       return {
         id: BigInt(index),
-        owner: data[0] || data.owner,
-        tokenIn: data[1] || data.tokenIn,
-        tokenOut: data[2] || data.tokenOut,
-        amountPerTrade: data[3] || data.amountPerTrade,
-        interval: data[4] || data.interval,
-        lastExecution: data[5] || data.lastExecution,
-        totalBalance: data[6] || data.totalBalance,
+        owner: data[0] ?? data.owner,
+        tokenIn: data[1] ?? data.tokenIn,
+        tokenOut: data[2] ?? data.tokenOut,
+        amountPerTrade: data[3] ?? data.amountPerTrade,
+        interval: data[4] ?? data.interval,
+        lastExecution: data[5] ?? data.lastExecution,
+        totalBalance: data[6] ?? data.totalBalance,
         isActive: data[7] ?? data.isActive, // Use ?? para booleanos
       };
     })
