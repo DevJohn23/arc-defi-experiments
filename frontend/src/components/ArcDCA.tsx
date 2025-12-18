@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useReadContract, useReadContracts, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
+import confetti from 'canvas-confetti'; // <--- Efeito visual
 import { erc20ABI } from '@/abis/erc20';
 import { ARC_DCA_ADDRESS, USDC_ADDRESS, MOCK_WETH_ADDRESS, arcDCAAbi } from '@/lib/constants';
 
-// USDC na interface ERC-20 da Arc usa 6 decimais.
 const USDC_DECIMALS = 6; 
 
 export function ArcDCA() {
@@ -17,13 +17,26 @@ export function ArcDCA() {
   const [totalDeposit, setTotalDeposit] = useState('');
   const [buyAmount, setBuyAmount] = useState('');
   const [interval, setInterval] = useState('60'); 
+  const [now, setNow] = useState(Date.now()); // <--- Relógio interno para atualizar a tela
 
-  // --- HASHES & LOADING ---
+  // --- UI FEEDBACK STATES ---
+  const [showToast, setShowToast] = useState(false);
   const [txHash, setTxHash] = useState<`0x${string}`>();
 
   const parsedTotalDeposit = totalDeposit ? parseUnits(totalDeposit, USDC_DECIMALS) : BigInt(0);
 
-  // 1. LEITURA: Allowance
+  // 0. RELÓGIO (HEARTBEAT) - CORRIGIDO COM WINDOW
+  useEffect(() => {
+    // Usar 'window.setInterval' elimina a confusão do TypeScript
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    
+    // Na limpeza, também usamos window.clearInterval
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // 1. LEITURA DE DADOS
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     abi: erc20ABI,
     address: USDC_ADDRESS,
@@ -32,21 +45,18 @@ export function ArcDCA() {
     query: { enabled: !!address },
   });
 
-  // 2. LEITURA: Quantas posições existem no total?
   const { data: nextPositionId, refetch: refetchCount } = useReadContract({
     abi: arcDCAAbi,
     address: ARC_DCA_ADDRESS,
     functionName: 'nextPositionId',
   });
 
-  // 3. LEITURA EM MASSA: Puxar dados de todas as posições
-  // Cria um array de IDs com segurança de tipo
   const count = nextPositionId ? Number(nextPositionId) : 0;
   const ids = Array.from({ length: count }, (_, i) => BigInt(i));
   
   const { data: allPositions, refetch: refetchPositions } = useReadContracts({
     contracts: ids.map(id => ({
-      abi: arcDCAAbi as any, // "as any" resolve o conflito de tipos estritos do TS
+      abi: arcDCAAbi as any,
       address: ARC_DCA_ADDRESS as `0x${string}`,
       functionName: 'positions',
       args: [id],
@@ -54,19 +64,10 @@ export function ArcDCA() {
     query: { enabled: ids.length > 0 }
   });
 
-  // 4. FILTRAGEM E MAPEAMENTO SEGURO
-  // Aqui resolvemos o erro de "Spread types". Mapeamos manualmente os campos.
   const myPositions = allPositions
     ?.map((result, index) => {
       if (result.status !== 'success' || !result.result) return null;
-      
-      // O resultado vem como um Array ou Objeto, dependendo do Viem.
-      // Vamos tratar como 'any' e mapear manualmente para garantir.
       const data = result.result as any;
-
-      // Se o retorno for um array (comum em smart contracts):
-      // [owner, tokenIn, tokenOut, amountPerTrade, interval, lastExecution, totalBalance, isActive]
-      // Se for objeto, acessamos as chaves. O TS não sabe, então forçamos a leitura segura:
       return {
         id: BigInt(index),
         owner: data[0] ?? data.owner,
@@ -76,7 +77,7 @@ export function ArcDCA() {
         interval: data[4] ?? data.interval,
         lastExecution: data[5] ?? data.lastExecution,
         totalBalance: data[6] ?? data.totalBalance,
-        isActive: data[7] ?? data.isActive, // Use ?? para booleanos
+        isActive: data[7] ?? data.isActive, 
       };
     })
     .filter((pos) => pos !== null && pos.owner === address);
@@ -85,19 +86,31 @@ export function ArcDCA() {
   const { isLoading: isTxConfirming, isSuccess: isTxSuccess } =
     useWaitForTransactionReceipt({ hash: txHash });
 
-  // Atualiza tudo após qualquer sucesso
+  // EFEITO DE SUCESSO (CONFETES + TOAST)
   useEffect(() => {
     if (isTxSuccess) {
+      // 1. Dispara Confetes
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#a855f7', '#3b82f6', '#10b981'] // Roxo, Azul, Verde
+      });
+
+      // 2. Mostra Toast
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 5000); // Esconde depois de 5s
+
+      // 3. Atualiza Dados
       refetchAllowance();
       refetchCount();
       refetchPositions();
-      setTotalDeposit(''); // Limpa form
-      setTxHash(undefined); // Limpa hash para permitir novas ações
+      setTotalDeposit('');
+      setTxHash(undefined);
     }
   }, [isTxSuccess, refetchAllowance, refetchCount, refetchPositions]);
 
   // --- ACTIONS ---
-
   const handleApprove = () => {
     writeContract({
       abi: erc20ABI,
@@ -111,7 +124,6 @@ export function ArcDCA() {
   const handleCreatePosition = () => {
     if (!totalDeposit || !buyAmount) return;
     const parsedBuyAmount = parseUnits(buyAmount, USDC_DECIMALS);
-    
     writeContract({
       abi: arcDCAAbi,
       address: ARC_DCA_ADDRESS,
@@ -127,16 +139,28 @@ export function ArcDCA() {
       address: ARC_DCA_ADDRESS,
       functionName: 'executeDCA',
       args: [posId],
-      gas: 3000000n, // Gás um pouco maior para a troca (Swap)
+      gas: 3000000n,
     }, { onSuccess: (hash) => setTxHash(hash) });
   };
   
-  // UI LOGIC
   const needsApproval = allowance !== undefined && allowance < parsedTotalDeposit;
   const isPending = isTxConfirming;
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 relative">
+      {/* TOAST DE SUCESSO (FLUTUANTE) */}
+      {showToast && (
+        <div className="fixed bottom-10 right-10 bg-gray-800 border border-green-500/50 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 animate-bounce-in z-50">
+          <div className="bg-green-500 rounded-full p-1">
+            <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+          </div>
+          <div>
+            <h4 className="font-bold text-green-400">Transaction Confirmed!</h4>
+            <p className="text-sm text-gray-400">Operation executed successfully.</p>
+          </div>
+        </div>
+      )}
+
       {/* SEÇÃO 1: CRIAR NOVO ROBÔ */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
@@ -188,8 +212,6 @@ export function ArcDCA() {
                 {isPending ? 'Processing...' : '2. Activate Bot 🚀'}
               </button>
             )}
-            
-            {isTxSuccess && <p className="text-green-400 text-center">✅ Transaction Confirmed!</p>}
           </div>
         </div>
 
@@ -204,7 +226,7 @@ export function ArcDCA() {
         </div>
       </div>
 
-      {/* SEÇÃO 2: DASHBOARD (MEUS INVESTIMENTOS) */}
+      {/* SEÇÃO 2: DASHBOARD */}
       <div className="border-t border-gray-700 pt-8">
         <h2 className="text-2xl font-bold text-white mb-6">📉 My Active Positions</h2>
         
@@ -217,13 +239,12 @@ export function ArcDCA() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {myPositions.map((pos: any) => {
-              // Cálculos de tempo para mostrar se está pronto para executar
               const lastExec = Number(pos.lastExecution);
               const intervalSec = Number(pos.interval);
               const nextExec = lastExec + intervalSec;
-              const now = Math.floor(Date.now() / 1000);
-              const isReady = now >= nextExec;
-              const timeLeft = nextExec - now;
+              const currentTime = Math.floor(now / 1000); // Usa o state 'now' para atualizar em tempo real
+              const isReady = currentTime >= nextExec;
+              const timeLeft = nextExec - currentTime;
 
               return (
                 <div key={pos.id} className="bg-slate-800 rounded-xl p-5 border border-slate-600 shadow-xl relative overflow-hidden group">
@@ -251,7 +272,6 @@ export function ArcDCA() {
                     </div>
                   </div>
 
-                  {/* BOTÃO DE AÇÃO */}
                   {pos.totalBalance < pos.amountPerTrade ? (
                     <button disabled className="w-full py-2 bg-gray-700 text-gray-500 rounded font-bold cursor-not-allowed">
                       Empty Vault (Finished)
@@ -262,11 +282,11 @@ export function ArcDCA() {
                       disabled={!isReady || isPending}
                       className={`w-full py-3 rounded font-bold transition-all flex justify-center items-center gap-2 ${
                         isReady 
-                          ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/25' 
+                          ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/25 scale-100 hover:scale-[1.02]' 
                           : 'bg-slate-700 text-slate-400 cursor-not-allowed'
                       }`}
                     >
-                      {isPending ? 'Executing...' : isReady ? '⚡ Force Run Trade' : `Wait ${timeLeft}s`}
+                      {isPending ? 'Executing...' : isReady ? '⚡ Force Run Trade' : `Wait ${timeLeft > 0 ? timeLeft : 0}s`}
                     </button>
                   )}
                 </div>
