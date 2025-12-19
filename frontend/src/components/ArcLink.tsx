@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { keccak256, encodePacked, parseUnits, parseEther, zeroAddress, toHex } from 'viem';
+import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
+import { keccak256, encodePacked, parseUnits, parseEther, formatUnits } from 'viem';
+import confetti from 'canvas-confetti';
+import { erc20ABI } from '@/abis/erc20'; // Certifique-se de ter essa ABI
 
-// ArcLink Contract Address
+// Endereços
 const ARC_LINK_ADDRESS = '0x74D27f868FA5253D89e9C65527aD3397860bEE8e';
-// EURC Token Address (replace with actual if different, using official from progress report)
 const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
+const NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
 
-// Mini ABI for ArcLink
+// ABI Mínima do ArcLink
 const arcLinkAbi = [
     {
         "type": "function",
@@ -32,9 +34,9 @@ const arcLinkAbi = [
         "outputs": [],
         "stateMutability": "nonpayable"
     }
-];
+] as const;
 
-// Helper component for copying text to clipboard
+// Helper para Copiar
 function CopyToClipboardButton({ textToCopy }: { textToCopy: string }) {
     const [copied, setCopied] = useState(false);
 
@@ -42,7 +44,7 @@ function CopyToClipboardButton({ textToCopy }: { textToCopy: string }) {
         navigator.clipboard.writeText(textToCopy)
             .then(() => {
                 setCopied(true);
-                setTimeout(() => setCopied(false), 2000); // Reset "Copied!" message after 2 seconds
+                setTimeout(() => setCopied(false), 2000);
             })
             .catch(err => console.error('Failed to copy text: ', err));
     };
@@ -50,199 +52,271 @@ function CopyToClipboardButton({ textToCopy }: { textToCopy: string }) {
     return (
         <button
             onClick={handleCopy}
-            className="mt-2 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 rounded-md py-2 font-semibold text-sm"
+            className={`mt-3 w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                copied 
+                ? 'bg-green-500 text-white shadow-lg' 
+                : 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600'
+            }`}
         >
-            {copied ? 'Copied!' : 'Copy Link'}
+            {copied ? (
+                <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                    Link Copied!
+                </>
+            ) : (
+                <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                    Copy Claim Link
+                </>
+            )}
         </button>
     );
 }
 
 export function ArcLink() {
     const { address } = useAccount();
-    const { writeContract: writeCreateLink, data: createHash, error: createError, isPending: isCreatingPending, reset: resetCreateLink } = useWriteContract();
-    const { writeContract: writeClaimLink, data: claimHash, error: claimError, isPending: isClaimingPending, reset: resetClaimLink } = useWriteContract();
+    const { writeContract, data: txHash, isPending: isTxPending } = useWriteContract();
 
-    // --- CREATE LINK STATE ---
+    // --- STATES ---
     const [createAmount, setCreateAmount] = useState('');
     const [createSecret, setCreateSecret] = useState('');
     const [createTokenType, setCreateTokenType] = useState<'usdc' | 'eurc'>('usdc');
     const [generatedLink, setGeneratedLink] = useState('');
-
-    // --- CLAIM LINK STATE ---
     const [claimSecret, setClaimSecret] = useState('');
+    
+    // Controle de fluxo (Approve vs Create vs Claim)
+    const [currentAction, setCurrentAction] = useState<'approve' | 'create' | 'claim' | null>(null);
 
-    const { isLoading: createIsConfirming, isSuccess: createIsConfirmed } = useWaitForTransactionReceipt({ hash: createHash });
-    const { isLoading: claimIsConfirming, isSuccess: claimIsConfirmed } = useWaitForTransactionReceipt({ hash: claimHash });
+    // Watcher de Transação
+    const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
+    // --- LÓGICA DE APROVAÇÃO (EURC) ---
+    const parsedAmount = createAmount 
+        ? (createTokenType === 'usdc' ? parseEther(createAmount) : parseUnits(createAmount, 6)) 
+        : 0n;
+
+    const { data: allowance, refetch: refetchAllowance } = useReadContract({
+        abi: erc20ABI,
+        address: EURC_ADDRESS,
+        functionName: 'allowance',
+        args: [address!, ARC_LINK_ADDRESS],
+        query: { enabled: !!address && createTokenType === 'eurc' },
+    });
+
+    const needsApproval = createTokenType === 'eurc' && (allowance || 0n) < parsedAmount;
+
+    // --- EFFECTS ---
     useEffect(() => {
         setGeneratedLink('');
-    }, [createAmount, createSecret]);
+    }, [createAmount, createSecret, createTokenType]);
 
     useEffect(() => {
-        if (createIsConfirmed) {
-            // Keep the link visible, do not reset automatically.
-            // Form inputs will be reset if user changes createAmount or createSecret due to other useEffect.
-        }
-    }, [createIsConfirmed]);
-
-    useEffect(() => {
-        if (claimIsConfirmed) {
-            setTimeout(() => {
+        if (isConfirmed) {
+            // Se acabou de criar o link
+            if (currentAction === 'create') {
+                const claimUrl = `${window.location.origin}?secret=${encodeURIComponent(createSecret)}`;
+                setGeneratedLink(claimUrl);
+                // Reset parcial
+                if(createTokenType === 'eurc') refetchAllowance();
+            }
+            
+            // Se acabou de clamar o link (Sucesso!)
+            if (currentAction === 'claim') {
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#db2777', '#be185d', '#ec4899'] // Tons de Rosa
+                });
                 setClaimSecret('');
-                resetClaimLink();
-            }, 5000); // Display success message for 5 seconds
-        }
-    }, [claimIsConfirmed, resetClaimLink, setClaimSecret]);
+            }
 
-    const handleCreateLink = async () => {
+            // Se foi apenas approve
+            if (currentAction === 'approve') {
+                refetchAllowance();
+            }
+
+            setCurrentAction(null); // Reseta ação
+        }
+    }, [isConfirmed, currentAction, createSecret, createTokenType, refetchAllowance]);
+
+
+    // --- HANDLERS ---
+    const handleApprove = () => {
+        setCurrentAction('approve');
+        writeContract({
+            abi: erc20ABI,
+            address: EURC_ADDRESS,
+            functionName: 'approve',
+            args: [ARC_LINK_ADDRESS, parsedAmount],
+        });
+    };
+
+    const handleCreateLink = () => {
         if (!createAmount || !createSecret) return;
+        setCurrentAction('create');
 
-        resetCreateLink(); // Clear previous hash and error
+        const hash = keccak256(encodePacked(['string'], [createSecret]));
+        const tokenAddr = createTokenType === 'usdc' ? NATIVE_TOKEN_ADDRESS : EURC_ADDRESS;
+        const value = createTokenType === 'usdc' ? parsedAmount : 0n;
 
-        try {
-            // 1. Generate Hash
-            const hash = keccak256(encodePacked(['string'], [createSecret]));
-
-            // 2. Parse Amount (Arc uses 18 decimals for Native, 6 for EURC)
-            const parsedAmountNative = parseEther(createAmount);
-            const parsedAmountEurc = parseUnits(createAmount, 6);
-
-            // 3. Determine Token Address (Zero Address for Native)
-            const tokenAddr = createTokenType === 'usdc'
-                ? '0x0000000000000000000000000000000000000000'
-                : EURC_ADDRESS;
-
-            // 4. Send Transaction
-            await writeCreateLink({
-                address: ARC_LINK_ADDRESS,
-                abi: arcLinkAbi,
-                functionName: 'createLink',
-                args: [hash, tokenAddr, createTokenType === 'usdc' ? parsedAmountNative : parsedAmountEurc],
-                // CRITICAL: If Native, attach ETH/USDC as value. If ERC20, value is 0.
-                value: createTokenType === 'usdc' ? parsedAmountNative : 0n,
-            });
-
-            // Generate the claimable link URL for sharing after transaction is sent
-            const claimUrl = `${window.location.origin}?secret=${encodeURIComponent(createSecret)}`;
-            setGeneratedLink(claimUrl);
-
-        } catch (error) {
-            console.error("Creation failed:", error);
-        }
+        writeContract({
+            abi: arcLinkAbi,
+            address: ARC_LINK_ADDRESS,
+            functionName: 'createLink',
+            args: [hash, tokenAddr, parsedAmount],
+            value: value,
+        });
     };
     
-    const handleClaimLink = async () => {
-        if (!claimSecret || !address) {
-            alert('Please provide the secret and connect your wallet.');
-            return;
-        }
+    const handleClaimLink = () => {
+        if (!claimSecret || !address) return;
+        setCurrentAction('claim');
 
-        await writeClaimLink({
-            address: ARC_LINK_ADDRESS,
+        writeContract({
             abi: arcLinkAbi,
+            address: ARC_LINK_ADDRESS,
             functionName: 'claimLink',
             args: [claimSecret, address],
         });
     };
 
+    const isPending = isTxPending || isConfirming;
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-4">
-            {/* Create Link Section */}
-            <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
-                <h2 className="text-2xl font-semibold mb-4">Create a Payment Link</h2>
-                
-                <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Token</label>
-                    <div className="flex items-center space-x-4">
-                        <button onClick={() => setCreateTokenType('usdc')} className={`px-4 py-2 rounded ${createTokenType === 'usdc' ? 'bg-blue-600' : 'bg-gray-600'}`}>Native USDC</button>
-                        <button onClick={() => setCreateTokenType('eurc')} className={`px-4 py-2 rounded ${createTokenType === 'eurc' ? 'bg-blue-600' : 'bg-gray-600'}`}>EURC (Token)</button>
-                    </div>
-                </div>
-
-                <div className="mb-4">
-                    <label htmlFor="create-amount" className="block text-sm font-medium mb-1">Amount</label>
-                    <input
-                        id="create-amount"
-                        type="text"
-                        value={createAmount}
-                        onChange={(e) => setCreateAmount(e.target.value)}
-                        placeholder="e.g., 100"
-                        className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2"
-                    />
-                </div>
-
-                <div className="mb-4">
-                    <label htmlFor="create-secret" className="block text-sm font-medium mb-1">Secret Password</label>
-                    <input
-                        id="create-secret"
-                        type="password"
-                        value={createSecret}
-                        onChange={(e) => setCreateSecret(e.target.value)}
-                        placeholder="Enter a strong password"
-                        className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2"
-                    />
-                </div>
-
-                <button
-                    onClick={handleCreateLink}
-                    disabled={isCreatingPending || !createAmount || !createSecret}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500 rounded-md py-2 font-semibold"
-                >
-                    {isCreatingPending ? 'Creating...' : 'Create Link'}
-                </button>
-
-                {generatedLink && createIsConfirmed && (
-                     <div className="mt-4 p-3 bg-green-900 border border-green-700 rounded-md">
-                        <p className="font-semibold">Link Created! Share this link to claim:</p>
-                        <input
-                            type="text"
-                            readOnly
-                            value={generatedLink}
-                            className="w-full bg-gray-800 border border-gray-600 rounded-md px-2 py-1 mt-2 text-sm"
-                            onFocus={(e) => e.target.select()}
-                        />
-                        <CopyToClipboardButton textToCopy={generatedLink} />
-                    </div>
-                )}
-                {createError && (
-                    <div className="text-red-400 mt-4">
-                        Error creating link: {createError.message}
-                    </div>
-                )}
+        <div className="space-y-8 relative pb-10">
+            
+            {/* Título da Seção */}
+            <div className="flex items-center gap-3 mb-6">
+                <div className="h-8 w-1 bg-pink-500 rounded-full shadow-[0_0_15px_rgba(236,72,153,0.5)]"></div>
+                <h2 className="text-2xl font-bold text-white">Payment Links</h2>
             </div>
 
-            {/* Claim Link Section */}
-            <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
-                <h2 className="text-2xl font-semibold mb-4">Claim from a Link</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 
-                <div className="mb-4">
-                    <label htmlFor="claim-secret" className="block text-sm font-medium mb-1">Secret Password</
-                    label>
-                    <input
-                        id="claim-secret"
-                        type="password"
-                        value={claimSecret}
-                        onChange={(e) => setClaimSecret(e.target.value)}
-                        placeholder="Enter the secret from the link"
-                        className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2"
-                    />
-                </div>
-                
-                <button
-                    onClick={handleClaimLink}
-                    disabled={isClaimingPending || !claimSecret}
-                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 rounded-md py-2 font-semibold"
-                >
-                    {isClaimingPending ? 'Claiming...' : 'Claim Funds'}
-                </button>
-
-                {claimIsConfirming && <p className="text-center mt-4">Waiting for confirmation...</p>}
-                {claimIsConfirmed && claimHash && <p className="text-center text-green-400 mt-4">Funds claimed successfully!</p>}
-                {claimError && (
-                    <div className="text-red-400 mt-4">
-                        Error claiming funds: {claimError.message}
+                {/* --- CARD 1: CRIAR LINK (ESQUERDA) --- */}
+                <div className="bg-gray-900/60 backdrop-blur-xl p-8 rounded-2xl shadow-2xl border border-gray-700/50 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 opacity-70"></div>
+                    
+                    <h3 className="text-xl font-bold mb-6 text-white">Create New Link</h3>
+                    
+                    {/* Seletor de Token */}
+                    <div className="flex bg-black/40 p-1 rounded-xl border border-gray-700/50 mb-6">
+                        <button 
+                            onClick={() => setCreateTokenType('usdc')}
+                            className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${createTokenType === 'usdc' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            Native USDC
+                        </button>
+                        <button 
+                            onClick={() => setCreateTokenType('eurc')}
+                            className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${createTokenType === 'eurc' ? 'bg-yellow-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            EURC
+                        </button>
                     </div>
-                )}
+
+                    <div className="space-y-4">
+                        <div className="relative">
+                            <span className="absolute left-4 top-3.5 text-gray-500 text-sm">Amount</span>
+                            <input
+                                type="number"
+                                value={createAmount}
+                                onChange={(e) => setCreateAmount(e.target.value)}
+                                placeholder="0.00"
+                                disabled={isPending}
+                                className="w-full pl-20 pr-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-pink-500 transition-colors text-right font-mono"
+                            />
+                        </div>
+
+                        <div className="relative">
+                            <span className="absolute left-4 top-3.5 text-gray-500 text-sm">Secret</span>
+                            <input
+                                type="password"
+                                value={createSecret}
+                                onChange={(e) => setCreateSecret(e.target.value)}
+                                placeholder="Secret Password"
+                                disabled={isPending}
+                                className="w-full pl-20 pr-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-pink-500 transition-colors font-mono"
+                            />
+                        </div>
+
+                        {!address ? (
+                            <button disabled className="w-full bg-gray-700 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed border border-gray-600">
+                                Connect Wallet
+                            </button>
+                        ) : needsApproval ? (
+                             <button
+                                onClick={handleApprove}
+                                disabled={isPending || !createAmount}
+                                className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-4 rounded-xl transition duration-300 shadow-lg shadow-yellow-900/20"
+                            >
+                                {isPending ? 'Approving...' : `1. Approve ${createAmount} EURC`}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleCreateLink}
+                                disabled={isPending || !createAmount || !createSecret}
+                                className="w-full bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] shadow-lg shadow-pink-900/30"
+                            >
+                                {isPending ? 'Creating Link...' : '2. Generate Link 🔗'}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Área de Sucesso (O Link Gerado) */}
+                    {generatedLink && (
+                        <div className="mt-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl animate-in fade-in slide-in-from-bottom-2">
+                            <div className="flex items-center gap-2 mb-2 text-green-400 font-bold text-sm uppercase tracking-wider">
+                                <span className="bg-green-500/20 p-1 rounded-full">✓</span> Link Ready
+                            </div>
+                            <input
+                                type="text"
+                                readOnly
+                                value={generatedLink}
+                                className="w-full bg-black/50 border border-green-500/20 rounded-lg px-3 py-2 text-xs text-gray-300 font-mono mb-1"
+                                onFocus={(e) => e.target.select()}
+                            />
+                            <CopyToClipboardButton textToCopy={generatedLink} />
+                        </div>
+                    )}
+                </div>
+
+                {/* --- CARD 2: REIVINDICAR (DIREITA) --- */}
+                <div className="bg-gray-900/60 backdrop-blur-xl p-8 rounded-2xl shadow-2xl border border-gray-700/50 relative">
+                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500 opacity-50"></div>
+                     
+                    <h2 className="text-xl font-bold mb-6 text-white">Claim Funds</h2>
+                    
+                    <div className="space-y-6">
+                        <div className="p-4 bg-pink-500/10 border border-pink-500/20 rounded-xl text-pink-200 text-sm leading-relaxed">
+                            Past the secret link below or enter the password manually to unlock the funds directly to your wallet.
+                        </div>
+
+                        <div>
+                            <label className="text-sm text-gray-400 mb-2 block ml-1">Secret Password</label>
+                            <input
+                                type="password"
+                                value={claimSecret}
+                                onChange={(e) => setClaimSecret(e.target.value)}
+                                placeholder="Enter secret..."
+                                className="w-full p-4 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-pink-500 transition-colors"
+                            />
+                        </div>
+                        
+                        <button
+                            onClick={handleClaimLink}
+                            disabled={isPending || !claimSecret || !address}
+                            className="w-full bg-gray-800 hover:bg-gray-700 text-white font-bold py-4 rounded-xl transition duration-300 border border-gray-600 hover:border-pink-500/50 hover:text-pink-400 group"
+                        >
+                            {isPending ? 'Processing...' : (
+                                <span className="flex items-center justify-center gap-2">
+                                    Unlock Funds <span className="group-hover:translate-x-1 transition-transform">🔓</span>
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );
