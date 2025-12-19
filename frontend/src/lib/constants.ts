@@ -6,8 +6,10 @@ export const MOCK_WETH_ADDRESS = '0x6FE689cA658F9430cd5F0E31a48AFCE591907298';
 // Endereço Oficial do Native Token (USDC) como ERC-20 na Arc (Precompile)
 export const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 
-// 2. ABI do Contrato ArcDCA
-// O 'as const' no final é obrigatório para o Wagmi/Viem entenderem os tipos
+// Endereço Oficial do EURC na Arc Testnet (Fonte: Docs)
+export const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
+
+// 2. ABI do Contrato ArcDCA (Mantida igual, com 'as const')
 export const arcDCAAbi = [
   {
     "type": "function",
