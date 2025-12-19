@@ -9,6 +9,8 @@ import { erc20ABI } from '@/abis/erc20';
 import { StreamHistory } from '@/components/StreamHistory';
 import { ArcLink } from '@/components/ArcLink';
 import { ArcDCA } from '@/components/ArcDCA'; // 1. Import ArcDCA
+import { Footer } from '@/components/footer';
+
 
 // Contract Addresses
 const ARC_STREAM_ADDRESS = '0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524';
@@ -300,9 +302,8 @@ export default function Home() {
         {activeTab === 'dca' && <ArcDCA />}
 
       </main>
-      <footer className="w-full max-w-5xl mt-12 text-center text-gray-500">
-        <p>ArcStream Frontend v2.1</p>
-      </footer>
+      <Footer/>
     </div>
+
   );
 }
