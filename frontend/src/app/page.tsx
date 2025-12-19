@@ -8,21 +8,23 @@ import { arcStreamABI } from '@/abis/arcStream';
 import { erc20ABI } from '@/abis/erc20';
 import { StreamHistory } from '@/components/StreamHistory';
 import { ArcLink } from '@/components/ArcLink';
-import { ArcDCA } from '@/components/ArcDCA'; // 1. Import ArcDCA
+import { ArcDCA } from '@/components/ArcDCA';
+import { Footer } from '@/components/footer';
+
 
 // Contract Addresses
 const ARC_STREAM_ADDRESS = '0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524';
 const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
 
 type TokenSymbol = 'NATIVE' | 'EURC';
-type ActiveTab = 'stream' | 'link' | 'dca'; // 2. Add 'dca' to ActiveTab type
+type ActiveTab = 'stream' | 'link' | 'dca';
 
 export default function Home() {
   const { address } = useAccount();
   const { writeContract } = useWriteContract();
 
   // Component State
-  const [activeTab, setActiveTab] = useState<ActiveTab>('stream');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('dca'); // Começar no DCA (destaque da atualização)
   const [selectedToken, setSelectedToken] = useState<TokenSymbol>('NATIVE');
   
   // Form State
@@ -48,7 +50,7 @@ export default function Home() {
     query: { enabled: !!streamId },
   });
 
-  // Read EURC allowance for the ArcStream contract
+  // Read EURC allowance
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     abi: erc20ABI,
     address: EURC_ADDRESS,
@@ -57,45 +59,31 @@ export default function Home() {
     query: { enabled: !!address && !isNativeToken },
   });
 
-  // Watcher for the approve transaction
+  // Watchers
   const { isLoading: isApprovePending, isSuccess: isApproveSuccess } = 
-    useWaitForTransactionReceipt({
-      hash: approveHash,
-    });
+    useWaitForTransactionReceipt({ hash: approveHash });
 
-  // Watcher for the create stream transaction
   const { isLoading: isStreamPending, isSuccess: isStreamSuccess } = 
-    useWaitForTransactionReceipt({
-      hash: createStreamHash,
-    });
+    useWaitForTransactionReceipt({ hash: createStreamHash });
 
-  // Effect to refetch allowance after a successful approval
+  // Effects
   useEffect(() => {
     if (isApproveSuccess) {
-      console.log('✅ Approval successful! Refetching allowance...');
       refetchAllowance();
     }
   }, [isApproveSuccess, refetchAllowance]);
   
-  // The Cleanup Effect for creating a stream
   useEffect(() => {
     if (isStreamSuccess) {
-      console.log("✅ Stream Created! Cleaning up UI...");
       setAmount('');
       setRecipient('');
       setDuration('');
-      
-      // Small delay to let the blockchain settle before refetching allowance
       setTimeout(() => {
-        if (!isNativeToken) {
-          refetchAllowance(); 
-          console.log("🔄 Allowance refetched");
-        }
+        if (!isNativeToken) refetchAllowance(); 
       }, 1000);
     }
   }, [isStreamSuccess, isNativeToken, refetchAllowance]);
 
-  // Effect to refetch claimable balance periodically
   useEffect(() => {
     if (streamId) {
       const interval = setInterval(() => refetchClaimable(), 5000);
@@ -103,16 +91,14 @@ export default function Home() {
     }
   }, [streamId, refetchClaimable]);
 
+  // Handlers
   const handleApprove = () => {
     writeContract({
       abi: erc20ABI,
       address: EURC_ADDRESS,
       functionName: 'approve',
       args: [ARC_STREAM_ADDRESS, parseUnits(amount, 6)],
-    },
-    {
-      onSuccess: (hash) => setApproveHash(hash),
-    });
+    }, { onSuccess: (hash) => setApproveHash(hash) });
   };
 
   const handleCreateStream = () => {
@@ -120,24 +106,14 @@ export default function Home() {
       alert('Please fill all fields');
       return;
     }
-
     const tokenAddress = isNativeToken ? zeroAddress : EURC_ADDRESS;
-    
     writeContract({
       abi: arcStreamABI,
       address: ARC_STREAM_ADDRESS,
       functionName: 'createStream',
-      args: [
-        recipient as `0x${string}`,
-        parsedAmount, 
-        BigInt(duration),
-        tokenAddress
-      ],
+      args: [recipient as `0x${string}`, parsedAmount, BigInt(duration), tokenAddress],
       value: isNativeToken ? parsedAmount : BigInt(0),
-    },
-    {
-      onSuccess: (hash) => setCreateStreamHash(hash),
-    });
+    }, { onSuccess: (hash) => setCreateStreamHash(hash) });
   };
 
   const handleWithdraw = () => {
@@ -157,152 +133,225 @@ export default function Home() {
   const isPending = isApprovePending || isStreamPending;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-8 font-sans">
-      <header className="w-full max-w-5xl flex justify-between items-center mb-12">
-        <h1 className="text-3xl font-bold text-purple-400">ArcProtocol</h1>
-        <ConnectButton />
+    <main className="min-h-screen bg-black text-white relative overflow-x-hidden flex flex-col font-sans">
+      
+      {/* 1. Background Global "Nebulosa" */}
+      <div className="fixed inset-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-black to-black -z-10"></div>
+      
+      {/* 2. Top Bar (Logo + Connect) */}
+      <header className="w-full max-w-7xl mx-auto p-6 flex justify-between items-center z-10 relative">
+         <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg shadow-purple-500/20"></div>
+            <span className="font-bold text-xl tracking-tight text-white">ArcProtocol</span>
+         </div>
+         <ConnectButton />
       </header>
 
-      <main className="w-full max-w-5xl">
-        {/* 3. Tab Navigation Update */}
-        <div className="flex justify-center border-b border-gray-700 mb-8">
-          <button
-            onClick={() => setActiveTab('stream')}
-            className={`px-6 py-3 font-semibold ${activeTab === 'stream' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-gray-200'}`}
-          >
-            ArcStream
-          </button>
-          <button
-            onClick={() => setActiveTab('link')}
-            className={`px-6 py-3 font-semibold ${activeTab === 'link' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-gray-200'}`}
-          >
-            ArcLink
-          </button>
-          <button
-            onClick={() => setActiveTab('dca')}
-            className={`px-6 py-3 font-semibold ${activeTab === 'dca' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-gray-200'}`}
-          >
-            🤖 Auto-Trade
-          </button>
+      <div className="flex-grow container mx-auto px-4 py-8">
+        
+        {/* 3. Título Hero */}
+        <div className="text-center mb-10 space-y-3">
+          <h1 className="text-5xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 tracking-tight">
+            Arc DeFi Suite
+          </h1>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">
+            The all-in-one toolkit. Stream money, create payment links, and automate your investments.
+          </p>
         </div>
 
-        {/* 4. Conditional Rendering Update */}
-        {activeTab === 'stream' && (
-          <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
-                <h2 className="text-2xl font-semibold mb-4">Create a New Stream</h2>
-                
-                <div className="flex bg-gray-700 rounded-lg p-1 mb-4">
-                  <button 
-                    onClick={() => setSelectedToken('NATIVE')}
-                    disabled={isPending}
-                    className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${selectedToken === 'NATIVE' ? 'bg-purple-600' : 'bg-transparent hover:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    Native USDC
-                  </button>
-                  <button 
-                    onClick={() => setSelectedToken('EURC')}
-                    disabled={isPending}
-                    className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${selectedToken === 'EURC' ? 'bg-purple-600' : 'bg-transparent hover:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    EURC
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Recipient Address (0x...)"
-                    className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                    disabled={isPending}
-                  />
-                  <input
-                    type="number"
-                    placeholder={`Amount (in ${isNativeToken ? 'USDC' : 'EURC'})`}
-                    className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    disabled={isPending}
-                  />
-                  <input
-                    type="number"
-                    placeholder="Duration (in seconds)"
-                    className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    disabled={isPending}
-                  />
-
-                  {address ? (
-                    needsApproval ? (
-                      <button
-                        onClick={handleApprove}
-                        disabled={isPending || !amount}
-                        className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-4 rounded transition duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
-                      >
-                        {isApprovePending ? 'Approving...' : `Approve ${amount} EURC`}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleCreateStream}
-                        disabled={isPending || !amount || !recipient || !duration}
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded transition duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
-                      >
-                        {isStreamPending ? 'Confirming...' : 'Start Stream'}
-                      </button>
-                    )
-                  ) : (
-                    <button
-                      disabled={true}
-                      className="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded cursor-not-allowed"
-                    >
-                      Connect Wallet to Start
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
-                <h2 className="text-2xl font-semibold mb-4">Check & Withdraw from Stream</h2>
-                <div className="space-y-4">
-                  <input
-                    type="number"
-                    placeholder="Enter Stream ID"
-                    className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    value={streamId}
-                    onChange={(e) => setStreamId(e.target.value)}
-                  />
-                  <div className="bg-gray-700 p-4 rounded">
-                    <p className="text-gray-400">Claimable Balance:</p>
-                    <p className="text-2xl font-mono">
-                      {claimableBalance !== undefined ? `${formatUnits(claimableBalance, decimals)}` : '0.0'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleWithdraw}
-                    disabled={!address || !streamId}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded transition duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
-                  >
-                    {address ? 'Withdraw Funds' : 'Connect Wallet to Withdraw'}
-                  </button>
-                </div>
-              </div>
-            </div>
-            <StreamHistory />
+        {/* 4. Menu de Navegação "Glass Pill" */}
+        <div className="flex justify-center mb-16">
+          <div className="bg-gray-900/60 backdrop-blur-xl p-1.5 rounded-2xl border border-gray-700/50 inline-flex gap-2 shadow-2xl">
+            <button
+              onClick={() => setActiveTab('stream')}
+              className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 ${
+                activeTab === 'stream' 
+                ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-900/30' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              🌊 ArcStream
+            </button>
+            <button
+              onClick={() => setActiveTab('link')}
+              className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 ${
+                activeTab === 'link' 
+                ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg shadow-pink-900/30' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              🔗 ArcLink
+            </button>
+            <button
+              onClick={() => setActiveTab('dca')}
+              className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 ${
+                activeTab === 'dca' 
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-900/30' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              🤖 Auto-Trade
+            </button>
           </div>
-        )}
-        
-        {activeTab === 'link' && <ArcLink />}
+        </div>
 
-        {activeTab === 'dca' && <ArcDCA />}
+        {/* 5. Renderização das Abas */}
+        <div className="max-w-5xl mx-auto transition-all duration-500 min-h-[500px]">
+          
+          {/* --- ABA STREAM (Remodelada com Estilo Glass) --- */}
+          {activeTab === 'stream' && (
+            <div className="animate-in fade-in zoom-in duration-300">
+               {/* Título da Seção */}
+              <div className="flex items-center gap-3 mb-8">
+                 <div className="h-8 w-1 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.5)]"></div>
+                 <h2 className="text-2xl font-bold text-white">Money Streaming</h2>
+              </div>
 
-      </main>
-      <footer className="w-full max-w-5xl mt-12 text-center text-gray-500">
-        <p>ArcStream Frontend v2.1</p>
-      </footer>
-    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                
+                {/* CARD DE CRIAÇÃO (Esquerda) */}
+                <div className="bg-gray-900/60 backdrop-blur-xl p-8 rounded-2xl shadow-2xl border border-gray-700/50 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 opacity-70"></div>
+                  
+                  <h2 className="text-xl font-bold mb-6 text-white">Start New Stream</h2>
+                  
+                  {/* Token Selector Pill */}
+                  <div className="flex bg-black/40 p-1 rounded-xl border border-gray-700/50 mb-6">
+                    <button 
+                      onClick={() => setSelectedToken('NATIVE')}
+                      disabled={isPending}
+                      className={`w-1/2 py-2 rounded-lg font-bold text-sm transition-all ${selectedToken === 'NATIVE' ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                    >
+                      USDC (Native)
+                    </button>
+                    <button 
+                      onClick={() => setSelectedToken('EURC')}
+                      disabled={isPending}
+                      className={`w-1/2 py-2 rounded-lg font-bold text-sm transition-all ${selectedToken === 'EURC' ? 'bg-yellow-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                    >
+                      EURC
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-gray-500 text-sm">To</span>
+                        <input
+                          type="text"
+                          placeholder="0x..."
+                          className="w-full pl-12 pr-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-cyan-500 transition-colors font-mono"
+                          value={recipient}
+                          onChange={(e) => setRecipient(e.target.value)}
+                          disabled={isPending}
+                        />
+                    </div>
+                    
+                    <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-gray-500 text-sm">Amount</span>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          className="w-full pl-20 pr-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-cyan-500 transition-colors text-right font-mono"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          disabled={isPending}
+                        />
+                    </div>
+
+                    <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-gray-500 text-sm">Duration</span>
+                        <input
+                          type="number"
+                          placeholder="Seconds"
+                          className="w-full pl-20 pr-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-cyan-500 transition-colors text-right font-mono"
+                          value={duration}
+                          onChange={(e) => setDuration(e.target.value)}
+                          disabled={isPending}
+                        />
+                    </div>
+
+                    {address ? (
+                      needsApproval ? (
+                        <button
+                          onClick={handleApprove}
+                          disabled={isPending || !amount}
+                          className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-4 rounded-xl transition duration-300 shadow-lg shadow-yellow-900/20"
+                        >
+                          {isApprovePending ? 'Approving...' : `1. Approve ${amount} EURC`}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleCreateStream}
+                          disabled={isPending || !amount || !recipient || !duration}
+                          className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] shadow-lg shadow-cyan-900/30"
+                        >
+                          {isStreamPending ? 'Creating Stream...' : '2. Start Stream 🌊'}
+                        </button>
+                      )
+                    ) : (
+                      <button disabled className="w-full bg-gray-700 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed border border-gray-600">
+                        Connect Wallet
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* CARD DE WITHDRAW (Direita) */}
+                <div className="bg-gray-900/60 backdrop-blur-xl p-8 rounded-2xl shadow-2xl border border-gray-700/50 relative">
+                  <h2 className="text-xl font-bold mb-6 text-white">Check & Withdraw</h2>
+                  <div className="space-y-6">
+                    <div>
+                        <label className="text-sm text-gray-400 mb-2 block">Stream ID</label>
+                        <input
+                            type="number"
+                            placeholder="e.g. 1"
+                            className="w-full p-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-cyan-500 transition-colors font-mono"
+                            value={streamId}
+                            onChange={(e) => setStreamId(e.target.value)}
+                        />
+                    </div>
+                    
+                    <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700/30 text-center">
+                      <p className="text-gray-400 text-sm mb-1">Claimable Balance</p>
+                      <p className="text-3xl font-bold text-white font-mono tracking-tight">
+                        {claimableBalance !== undefined ? `${formatUnits(claimableBalance, decimals)}` : '0.00'}
+                      </p>
+                      <p className="text-xs text-cyan-400 mt-1">{isNativeToken ? 'USDC' : 'EURC'}</p>
+                    </div>
+
+                    <button
+                      onClick={handleWithdraw}
+                      disabled={!address || !streamId}
+                      className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl transition duration-300 border border-gray-600 hover:border-gray-500"
+                    >
+                      {address ? 'Withdraw Funds' : 'Connect Wallet'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Histórico Abaixo */}
+              <StreamHistory />
+            </div>
+          )}
+          
+          {/* --- OUTRAS ABAS --- */}
+          {activeTab === 'link' && (
+             <div className="animate-in fade-in zoom-in duration-300">
+                <ArcLink />
+             </div>
+          )}
+
+          {activeTab === 'dca' && (
+             <div className="animate-in fade-in zoom-in duration-300">
+                <ArcDCA />
+             </div>
+          )}
+
+        </div>
+      </div>
+      
+      <Footer/>
+    </main>
   );
 }

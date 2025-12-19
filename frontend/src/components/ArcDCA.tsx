@@ -3,43 +3,43 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useReadContract, useReadContracts, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
-import confetti from 'canvas-confetti'; // <--- Efeito visual
+import confetti from 'canvas-confetti';
 import { erc20ABI } from '@/abis/erc20';
-import { ARC_DCA_ADDRESS, USDC_ADDRESS, MOCK_WETH_ADDRESS, arcDCAAbi } from '@/lib/constants';
+import { ARC_DCA_ADDRESS, USDC_ADDRESS, EURC_ADDRESS, MOCK_WETH_ADDRESS, arcDCAAbi } from '@/lib/constants';
 
-const USDC_DECIMALS = 6; 
+const TOKEN_DECIMALS = 6; 
 
 export function ArcDCA() {
   const { address } = useAccount();
   const { writeContract } = useWriteContract();
 
   // --- FORM STATES ---
+  const [selectedToken, setSelectedToken] = useState<'USDC' | 'EURC'>('USDC');
   const [totalDeposit, setTotalDeposit] = useState('');
   const [buyAmount, setBuyAmount] = useState('');
   const [interval, setInterval] = useState('60'); 
-  const [now, setNow] = useState(Date.now()); // <--- Relógio interno para atualizar a tela
+  const [now, setNow] = useState(Date.now());
 
-  // --- UI FEEDBACK STATES ---
+  // --- UI & LOGIC STATES ---
   const [showToast, setShowToast] = useState(false);
   const [txHash, setTxHash] = useState<`0x${string}`>();
+  const [lastAction, setLastAction] = useState<'approve' | 'create' | 'execute' | null>(null); // NOVO: Para controlar o confete
 
-  const parsedTotalDeposit = totalDeposit ? parseUnits(totalDeposit, USDC_DECIMALS) : BigInt(0);
+  const tokenAddress = selectedToken === 'USDC' ? USDC_ADDRESS : EURC_ADDRESS;
+  const parsedTotalDeposit = totalDeposit ? parseUnits(totalDeposit, TOKEN_DECIMALS) : BigInt(0);
 
-  // 0. RELÓGIO (HEARTBEAT) - CORRIGIDO COM WINDOW
+  // 0. RELÓGIO
   useEffect(() => {
-    // Usar 'window.setInterval' elimina a confusão do TypeScript
     const timer = window.setInterval(() => {
       setNow(Date.now());
     }, 1000);
-    
-    // Na limpeza, também usamos window.clearInterval
     return () => window.clearInterval(timer);
   }, []);
 
-  // 1. LEITURA DE DADOS
+  // 1. DADOS ON-CHAIN
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     abi: erc20ABI,
-    address: USDC_ADDRESS,
+    address: tokenAddress as `0x${string}`,
     functionName: 'allowance',
     args: [address!, ARC_DCA_ADDRESS],
     query: { enabled: !!address },
@@ -68,10 +68,15 @@ export function ArcDCA() {
     ?.map((result, index) => {
       if (result.status !== 'success' || !result.result) return null;
       const data = result.result as any;
+      
+      const tIn = (data[1] ?? data.tokenIn).toLowerCase();
+      const symbol = tIn === USDC_ADDRESS.toLowerCase() ? 'USDC' : (tIn === EURC_ADDRESS.toLowerCase() ? 'EURC' : '???');
+
       return {
         id: BigInt(index),
         owner: data[0] ?? data.owner,
         tokenIn: data[1] ?? data.tokenIn,
+        tokenInSymbol: symbol,
         tokenOut: data[2] ?? data.tokenOut,
         amountPerTrade: data[3] ?? data.amountPerTrade,
         interval: data[4] ?? data.interval,
@@ -82,39 +87,44 @@ export function ArcDCA() {
     })
     .filter((pos) => pos !== null && pos.owner === address);
 
-  // --- WATCHER DE TRANSAÇÃO ---
+  // --- TRANSACTION WATCHER ---
   const { isLoading: isTxConfirming, isSuccess: isTxSuccess } =
     useWaitForTransactionReceipt({ hash: txHash });
 
-  // EFEITO DE SUCESSO (CONFETES + TOAST)
+  // --- EFEITOS VISUAIS (CORRIGIDO) ---
   useEffect(() => {
     if (isTxSuccess) {
-      // 1. Dispara Confetes
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#a855f7', '#3b82f6', '#10b981'] // Roxo, Azul, Verde
-      });
+      // SÓ solta confete se NÃO for Approve
+      if (lastAction === 'create' || lastAction === 'execute') {
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: selectedToken === 'EURC' ? ['#fbbf24', '#f59e0b'] : ['#3b82f6', '#a855f7']
+        });
+      }
 
-      // 2. Mostra Toast
       setShowToast(true);
-      setTimeout(() => setShowToast(false), 5000); // Esconde depois de 5s
+      setTimeout(() => setShowToast(false), 8000);
 
-      // 3. Atualiza Dados
       refetchAllowance();
       refetchCount();
       refetchPositions();
-      setTotalDeposit('');
+      
+      // Limpa formulário apenas se criou posição
+      if (lastAction === 'create') setTotalDeposit('');
+      
       setTxHash(undefined);
+      setLastAction(null); // Reseta a ação
     }
-  }, [isTxSuccess, refetchAllowance, refetchCount, refetchPositions]);
+  }, [isTxSuccess, lastAction, selectedToken, refetchAllowance, refetchCount, refetchPositions]);
 
-  // --- ACTIONS ---
+  // --- HANDLERS ---
   const handleApprove = () => {
+    setLastAction('approve'); // Marca como Approve
     writeContract({
       abi: erc20ABI,
-      address: USDC_ADDRESS,
+      address: tokenAddress as `0x${string}`,
       functionName: 'approve',
       args: [ARC_DCA_ADDRESS, parsedTotalDeposit],
       gas: 2000000n,
@@ -123,17 +133,20 @@ export function ArcDCA() {
 
   const handleCreatePosition = () => {
     if (!totalDeposit || !buyAmount) return;
-    const parsedBuyAmount = parseUnits(buyAmount, USDC_DECIMALS);
+    setLastAction('create'); // Marca como Create (Confete Sim)
+    const parsedBuyAmount = parseUnits(buyAmount, TOKEN_DECIMALS);
+    
     writeContract({
       abi: arcDCAAbi,
       address: ARC_DCA_ADDRESS,
       functionName: 'createPosition',
-      args: [USDC_ADDRESS, MOCK_WETH_ADDRESS, parsedBuyAmount, BigInt(interval), parsedTotalDeposit],
+      args: [tokenAddress, MOCK_WETH_ADDRESS, parsedBuyAmount, BigInt(interval), parsedTotalDeposit],
       gas: 2000000n,
     }, { onSuccess: (hash) => setTxHash(hash) });
   };
 
   const handleExecute = (posId: bigint) => {
+    setLastAction('execute'); // Marca como Execute (Confete Sim)
     writeContract({
       abi: arcDCAAbi,
       address: ARC_DCA_ADDRESS,
@@ -142,99 +155,160 @@ export function ArcDCA() {
       gas: 3000000n,
     }, { onSuccess: (hash) => setTxHash(hash) });
   };
+
+  const handleShare = () => {
+    const text = `Just auto-swapped ${selectedToken} to WETH on @Arc using ArcDCA! 🚀\n\nTesting the new multi-currency vault feature. #BuildOnArc #DeFi`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
+  };
   
   const needsApproval = allowance !== undefined && allowance < parsedTotalDeposit;
   const isPending = isTxConfirming;
 
   return (
-    <div className="space-y-12 relative">
-      {/* TOAST DE SUCESSO (FLUTUANTE) */}
+    <div className="space-y-12 relative pb-10">
+      
+      {/* TOAST FLUTUANTE */}
       {showToast && (
-        <div className="fixed bottom-10 right-10 bg-gray-800 border border-green-500/50 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 animate-bounce-in z-50">
-          <div className="bg-green-500 rounded-full p-1">
-            <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+        <div className="fixed bottom-10 right-10 flex flex-col gap-2 z-50 animate-bounce-in">
+          <div className="bg-gray-900/90 backdrop-blur border border-green-500/30 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3">
+            <div className="bg-green-500/20 rounded-full p-1.5 text-green-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <div>
+              <h4 className="font-bold text-green-400">Transaction Confirmed</h4>
+              <p className="text-xs text-gray-400 font-mono">{lastAction === 'approve' ? 'Spending Approved' : 'Action Successful'}</p>
+            </div>
           </div>
-          <div>
-            <h4 className="font-bold text-green-400">Transaction Confirmed!</h4>
-            <p className="text-sm text-gray-400">Operation executed successfully.</p>
-          </div>
+          {(lastAction === 'create' || lastAction === 'execute') && (
+             <button onClick={handleShare} className="bg-white text-black px-6 py-3 rounded-xl font-bold hover:bg-gray-200 flex items-center justify-center gap-2 shadow-lg transition-all">
+                <span>🐦 Share on X</span>
+             </button>
+          )}
         </div>
       )}
 
-      {/* SEÇÃO 1: CRIAR NOVO ROBÔ */}
+      {/* PAINEL DE CRIAÇÃO (PREMIUM LOOK) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
-          <h2 className="text-2xl font-semibold mb-4 text-white">Create Auto-Trade Vault</h2>
-          <div className="space-y-4">
-            <input
-              type="number"
-              placeholder="Total Deposit (USDC)"
-              className="w-full p-3 rounded bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-purple-500"
-              value={totalDeposit}
-              onChange={(e) => setTotalDeposit(e.target.value)}
-              disabled={isPending}
-            />
-            <input
-              type="number"
-              placeholder="Buy Amount per Trade (USDC)"
-              className="w-full p-3 rounded bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-purple-500"
-              value={buyAmount}
-              onChange={(e) => setBuyAmount(e.target.value)}
-              disabled={isPending}
-            />
-            <input
-              type="number"
-              placeholder="Interval (seconds)"
-              className="w-full p-3 rounded bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-purple-500"
-              value={interval}
-              onChange={(e) => setInterval(e.target.value)}
-              disabled={isPending}
-            />
+        
+        {/* CARD DO FORMULÁRIO */}
+        <div className="bg-gray-900/60 backdrop-blur-xl p-8 rounded-2xl shadow-2xl border border-gray-700/50 relative overflow-hidden">
+          {/* Efeito de brilho no topo */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-70"></div>
+          
+          <h2 className="text-2xl font-bold mb-6 text-white tracking-tight">Create Vault</h2>
+          
+          <div className="space-y-5">
+            {/* Toggle Switch Personalizado */}
+            <div className="flex bg-black/40 p-1.5 rounded-xl border border-gray-700/50">
+              {['USDC', 'EURC'].map((token) => (
+                <button 
+                  key={token}
+                  onClick={() => setSelectedToken(token as any)}
+                  className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all duration-300 ${selectedToken === token 
+                    ? (token === 'USDC' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'bg-yellow-600 text-white shadow-lg shadow-yellow-900/50')
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}
+                >
+                  {token === 'USDC' ? '🇺🇸 USDC' : '🇪🇺 EURC'}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+                <div className="relative">
+                    <span className="absolute left-4 top-3.5 text-gray-500 text-sm">Deposit</span>
+                    <input
+                    type="number"
+                    className="w-full pl-20 pr-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-purple-500 transition-colors text-right font-mono"
+                    value={totalDeposit}
+                    onChange={(e) => setTotalDeposit(e.target.value)}
+                    disabled={isPending}
+                    />
+                </div>
+                <div className="relative">
+                    <span className="absolute left-4 top-3.5 text-gray-500 text-sm">Trade Size</span>
+                    <input
+                    type="number"
+                    className="w-full pl-24 pr-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-purple-500 transition-colors text-right font-mono"
+                    value={buyAmount}
+                    onChange={(e) => setBuyAmount(e.target.value)}
+                    disabled={isPending}
+                    />
+                </div>
+                 <div className="relative">
+                    <span className="absolute left-4 top-3.5 text-gray-500 text-sm">Interval (s)</span>
+                    <input
+                    type="number"
+                    className="w-full pl-24 pr-4 py-3 bg-black/30 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:border-purple-500 transition-colors text-right font-mono"
+                    value={interval}
+                    onChange={(e) => setInterval(e.target.value)}
+                    disabled={isPending}
+                    />
+                </div>
+            </div>
 
             {!address ? (
-              <button disabled className="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded cursor-not-allowed">
-                Connect Wallet first
+              <button disabled className="w-full bg-gray-700/50 text-gray-400 font-bold py-4 rounded-xl cursor-not-allowed border border-gray-700">
+                Connect Wallet
               </button>
             ) : needsApproval ? (
               <button
                 onClick={handleApprove}
                 disabled={isPending || !totalDeposit}
-                className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-4 rounded transition disabled:opacity-50"
+                className={`w-full font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] shadow-lg ${selectedToken === 'USDC' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-blue-900/30' : 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-yellow-900/30'}`}
               >
-                {isPending ? 'Approving...' : `1. Approve ${totalDeposit} USDC`}
+                {isPending ? 'Approving...' : `1. Enable ${selectedToken}`}
               </button>
             ) : (
               <button
                 onClick={handleCreatePosition}
                 disabled={isPending || !totalDeposit}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded transition disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] shadow-lg shadow-purple-900/30"
               >
-                {isPending ? 'Processing...' : '2. Activate Bot 🚀'}
+                {isPending ? 'Processing...' : '2. Launch Vault 🚀'}
               </button>
             )}
           </div>
         </div>
 
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 flex flex-col justify-center">
-           <h3 className="text-xl font-semibold mb-4 text-white">How it Works</h3>
-           <ol className="list-decimal list-inside text-gray-400 space-y-3">
-              <li>Approve USDC usage.</li>
-              <li>Deposit into the vault.</li>
-              <li>Use the dashboard below to <strong>Execute Trades</strong>.</li>
-              <li>Profits go straight to your wallet.</li>
-           </ol>
+        {/* CARD DE INSTRUÇÕES */}
+        <div className="flex flex-col justify-center text-gray-400 space-y-6 p-4">
+           <div>
+               <h3 className="text-xl font-bold text-white mb-2">Dual-Currency Engine</h3>
+               <p className="text-sm leading-relaxed">
+                   Our smart contracts now support native routing for both <strong className="text-blue-400">USDC</strong> and <strong className="text-yellow-400">EURC</strong>.
+               </p>
+           </div>
+           
+           <div className="grid grid-cols-2 gap-4">
+               <div className="bg-gray-800/40 p-4 rounded-lg border border-gray-700/50">
+                   <div className="text-xs uppercase tracking-wider text-gray-500 mb-1">Strategy</div>
+                   <div className="text-white font-semibold">Dollar Cost Average</div>
+               </div>
+               <div className="bg-gray-800/40 p-4 rounded-lg border border-gray-700/50">
+                   <div className="text-xs uppercase tracking-wider text-gray-500 mb-1">Target Asset</div>
+                   <div className="text-white font-semibold">Wrapped ETH</div>
+               </div>
+           </div>
+
+           <div className="p-4 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/20 rounded-xl text-sm text-blue-200 flex gap-3 items-start">
+             <span className="text-xl">💡</span>
+             <p>Use the <strong>Arc Faucet</strong> to get free testnet EURC/USDC. Test the full cycle with our instant execution engine below.</p>
+           </div>
         </div>
       </div>
 
-      {/* SEÇÃO 2: DASHBOARD */}
-      <div className="border-t border-gray-700 pt-8">
-        <h2 className="text-2xl font-bold text-white mb-6">📉 My Active Positions</h2>
+      {/* DASHBOARD AREA */}
+      <div className="pt-10">
+        <div className="flex items-center gap-3 mb-8">
+            <div className="h-8 w-1 bg-purple-500 rounded-full"></div>
+            <h2 className="text-2xl font-bold text-white">Active Positions</h2>
+        </div>
         
         {!address ? (
-          <p className="text-gray-400">Connect wallet to view positions.</p>
+          <p className="text-gray-500 italic">Wallet not connected.</p>
         ) : !myPositions || myPositions.length === 0 ? (
-          <div className="p-8 bg-gray-800/50 rounded-lg text-center border border-gray-700 border-dashed">
-            <p className="text-gray-400">No active bots found. Create one above!</p>
+          <div className="p-12 bg-gray-900/30 rounded-2xl text-center border-2 border-gray-800 border-dashed">
+            <p className="text-gray-500">Your vaults will appear here.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -242,53 +316,60 @@ export function ArcDCA() {
               const lastExec = Number(pos.lastExecution);
               const intervalSec = Number(pos.interval);
               const nextExec = lastExec + intervalSec;
-              const currentTime = Math.floor(now / 1000); // Usa o state 'now' para atualizar em tempo real
+              const currentTime = Math.floor(now / 1000); 
               const isReady = currentTime >= nextExec;
               const timeLeft = nextExec - currentTime;
 
+              const isEur = pos.tokenInSymbol === 'EURC';
+              const themeColor = isEur ? 'yellow' : 'blue';
+              const gradient = isEur ? 'from-yellow-500/10 to-orange-500/10' : 'from-blue-500/10 to-purple-500/10';
+              const borderColor = isEur ? 'border-yellow-500/30' : 'border-blue-500/30';
+
               return (
-                <div key={pos.id} className="bg-slate-800 rounded-xl p-5 border border-slate-600 shadow-xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                <div key={pos.id} className={`bg-gray-900/80 backdrop-blur-md rounded-2xl p-6 border ${borderColor} shadow-xl relative overflow-hidden group hover:border-opacity-100 transition-colors`}>
+                  {/* Fundo Gradiente Sutil */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50`}></div>
                   
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="font-bold text-white text-lg">Vault #{pos.id.toString()}</h3>
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${pos.isActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                      {pos.isActive ? 'RUNNING' : 'PAUSED'}
-                    </span>
-                  </div>
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-6">
+                        <div className="flex flex-col">
+                            <span className="text-xs text-gray-500 uppercase tracking-widest font-bold">Vault ID</span>
+                            <span className="text-xl font-bold text-white">#{pos.id.toString()}</span>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${isEur ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
+                            {pos.tokenInSymbol}
+                        </span>
+                    </div>
 
-                  <div className="space-y-2 text-sm text-gray-300 mb-6">
-                    <div className="flex justify-between">
-                      <span>Vault Balance:</span>
-                      <span className="text-white font-mono">{formatUnits(pos.totalBalance, USDC_DECIMALS)} USDC</span>
+                    <div className="space-y-3 mb-8">
+                        <div className="flex justify-between items-end border-b border-gray-700/50 pb-2">
+                            <span className="text-gray-400 text-sm">Balance</span>
+                            <span className="text-white font-mono text-lg">{formatUnits(pos.totalBalance, TOKEN_DECIMALS)}</span>
+                        </div>
+                        <div className="flex justify-between items-end border-b border-gray-700/50 pb-2">
+                            <span className="text-gray-400 text-sm">Size</span>
+                            <span className="text-gray-500 font-mono">{formatUnits(pos.amountPerTrade, TOKEN_DECIMALS)} / trade</span>
+                        </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Trade Size:</span>
-                      <span className="text-white font-mono">{formatUnits(pos.amountPerTrade, USDC_DECIMALS)} USDC</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Interval:</span>
-                      <span className="text-white">{pos.interval.toString()}s</span>
-                    </div>
-                  </div>
 
-                  {pos.totalBalance < pos.amountPerTrade ? (
-                    <button disabled className="w-full py-2 bg-gray-700 text-gray-500 rounded font-bold cursor-not-allowed">
-                      Empty Vault (Finished)
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => handleExecute(pos.id)}
-                      disabled={!isReady || isPending}
-                      className={`w-full py-3 rounded font-bold transition-all flex justify-center items-center gap-2 ${
-                        isReady 
-                          ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/25 scale-100 hover:scale-[1.02]' 
-                          : 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                      }`}
-                    >
-                      {isPending ? 'Executing...' : isReady ? '⚡ Force Run Trade' : `Wait ${timeLeft > 0 ? timeLeft : 0}s`}
-                    </button>
-                  )}
+                    {pos.totalBalance < pos.amountPerTrade ? (
+                        <button disabled className="w-full py-3 bg-gray-800 text-gray-500 rounded-xl font-bold text-sm cursor-not-allowed border border-gray-700">
+                        VAULT COMPLETED
+                        </button>
+                    ) : (
+                        <button 
+                        onClick={() => handleExecute(pos.id)}
+                        disabled={!isReady || isPending}
+                        className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all flex justify-center items-center gap-2 shadow-lg ${
+                            isReady 
+                            ? 'bg-green-500 hover:bg-green-400 text-black transform hover:-translate-y-0.5' 
+                            : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                        }`}
+                        >
+                        {isPending ? 'Executing...' : isReady ? '⚡ TRIGGER SWAP' : `Wait ${timeLeft > 0 ? timeLeft : 0}s`}
+                        </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
