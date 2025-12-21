@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.20;
 
-import "forge-std/interfaces/IERC20.sol";
+import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+
+// --- Interfaces ---
+
+interface IArcProfile {
+    function addXP(address user, uint256 amount, uint256 badgeId) external;
+}
 
 /**
  * @title ArcLink
@@ -9,7 +16,7 @@ import "forge-std/interfaces/IERC20.sol";
  * The sender deposits funds with a hash of a secret, and the receiver
  * can claim the funds by providing the original secret.
  */
-contract ArcLink {
+contract ArcLink is Ownable {
     // --- Structs ---
 
     /**
@@ -28,6 +35,8 @@ contract ArcLink {
 
     // --- State Variables ---
 
+    address public arcProfile;
+    
     /**
      * @dev Mapping from the keccak256 hash of a secret to the corresponding Link.
      */
@@ -38,6 +47,7 @@ contract ArcLink {
     event LinkCreated(bytes32 indexed secretHash, address indexed sender, uint256 amount, address token);
     event LinkClaimed(bytes32 indexed secretHash, address indexed recipient, uint256 amount, address token);
     event LinkRefunded(bytes32 indexed secretHash, address indexed sender, uint256 amount, address token);
+    event ArcProfileAddressSet(address indexed arcProfileAddress);
 
     // --- Errors ---
 
@@ -49,7 +59,20 @@ contract ArcLink {
     error NativeValueMismatch();
     error Erc20ValueSent();
 
+    // --- Constructor ---
+
+    constructor() Ownable(msg.sender) {}
+
     // --- Functions ---
+    
+    /**
+     * @notice Sets the address of the ArcProfile contract.
+     * @param _arcProfileAddress The address of the ArcProfile contract.
+     */
+    function setArcProfileAddress(address _arcProfileAddress) external onlyOwner {
+        arcProfile = _arcProfileAddress;
+        emit ArcProfileAddressSet(_arcProfileAddress);
+    }
 
     /**
      * @notice Creates a new link by depositing funds.
@@ -81,6 +104,15 @@ contract ArcLink {
         });
 
         emit LinkCreated(secretHash, msg.sender, amount, token);
+
+        // --- Gamification Hook ---
+        if (arcProfile != address(0)) {
+            try IArcProfile(arcProfile).addXP(msg.sender, 20, 1) { // 20 XP, Badge 1 (Linker)
+                // Success, do nothing
+            } catch {
+                // Failure is silent, do not revert the main transaction
+            }
+        }
     }
 
     /**

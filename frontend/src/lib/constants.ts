@@ -1,4 +1,7 @@
+import { arcProfileABI } from '../abis/arcProfile';
+
 // 1. Endereços dos Contratos (Arc Testnet)
+export const ARC_PROFILE_ADDRESS = '0x...'; // TODO: Update with deployed address
 export const ARC_DCA_ADDRESS = '0xEbbb3e8630D69ab25Cf55A4B78cf94cE9F3d376A';
 export const MOCK_SWAP_ADDRESS = '0xdaB8B474d6BC63A44e410f8174E796130988F7eD';
 export const MOCK_WETH_ADDRESS = '0x6FE689cA658F9430cd5F0E31a48AFCE591907298';
@@ -9,7 +12,10 @@ export const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 // Endereço Oficial do EURC na Arc Testnet (Fonte: Docs)
 export const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
 
-// 2. ABI do Contrato ArcDCA (Mantida igual, com 'as const')
+// 2. ABIs dos Contratos
+export { arcProfileABI } from '../abis/arcProfile';
+
+// ABI do Contrato ArcDCA (Mantida igual, com 'as const')
 export const arcDCAAbi = [
   {
     "type": "function",

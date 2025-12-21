@@ -1,14 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.20;
 
-import "forge-std/interfaces/IERC20.sol";
+import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+
+// --- Interfaces ---
+
+interface IArcProfile {
+    function addXP(address user, uint256 amount, uint256 badgeId) external;
+}
 
 /**
  * @title ArcStream Protocol
  * @dev A protocol for creating and managing real-time payment streams of native USDC or ERC-20 tokens.
  * This contract allows a Payer to deposit funds that flow to a Recipient over a specified duration.
  */
-contract ArcStream {
+contract ArcStream is Ownable {
     // --- Events ---
 
     event CreateStream(
@@ -33,6 +40,8 @@ contract ArcStream {
         uint256 senderAmount,
         uint256 recipientAmount
     );
+    
+    event ArcProfileAddressSet(address indexed arcProfileAddress);
 
     // --- Structs ---
 
@@ -51,6 +60,7 @@ contract ArcStream {
 
     uint256 public nextStreamId;
     mapping(uint256 => Stream) public streams;
+    address public arcProfile;
 
     // --- Errors ---
 
@@ -62,7 +72,20 @@ contract ArcStream {
     error NativeValueMismatch();
     error Erc20ValueSent();
 
+    // --- Constructor ---
+    
+    constructor() Ownable(msg.sender) {}
+
     // --- Functions ---
+
+    /**
+     * @notice Sets the address of the ArcProfile contract.
+     * @param _arcProfileAddress The address of the ArcProfile contract.
+     */
+    function setArcProfileAddress(address _arcProfileAddress) external onlyOwner {
+        arcProfile = _arcProfileAddress;
+        emit ArcProfileAddressSet(_arcProfileAddress);
+    }
 
     /**
      * @notice Creates a new payment stream.
@@ -109,6 +132,15 @@ contract ArcStream {
         nextStreamId++;
 
         emit CreateStream(streamId, msg.sender, recipient, amount, tokenAddress, duration);
+
+        // --- Gamification Hook ---
+        if (arcProfile != address(0)) {
+            try IArcProfile(arcProfile).addXP(msg.sender, 10, 0) { // 10 XP, Badge 0 (Streamer)
+                // Success, do nothing
+            } catch {
+                // Failure is silent, do not revert the main transaction
+            }
+        }
     }
 
     /**
