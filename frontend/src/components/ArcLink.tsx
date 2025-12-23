@@ -2,39 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
-import { keccak256, encodePacked, parseUnits, parseEther, formatUnits } from 'viem';
+import { keccak256, encodePacked, parseUnits, parseEther, zeroAddress } from 'viem';
 import confetti from 'canvas-confetti';
-import { erc20ABI } from '@/abis/erc20'; // Certifique-se de ter essa ABI
-
-// Endereços
-const ARC_LINK_ADDRESS = '0x74D27f868FA5253D89e9C65527aD3397860bEE8e';
-const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
-const NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
-
-// ABI Mínima do ArcLink
-const arcLinkAbi = [
-    {
-        "type": "function",
-        "name": "createLink",
-        "inputs": [
-            { "name": "secretHash", "type": "bytes32", "internalType": "bytes32" },
-            { "name": "token", "type": "address", "internalType": "address" },
-            { "name": "amount", "type": "uint256", "internalType": "uint256" }
-        ],
-        "outputs": [],
-        "stateMutability": "payable"
-    },
-    {
-        "type": "function",
-        "name": "claimLink",
-        "inputs": [
-            { "name": "secret", "type": "string", "internalType": "string" },
-            { "name": "recipient", "type": "address", "internalType": "address" }
-        ],
-        "outputs": [],
-        "stateMutability": "nonpayable"
-    }
-] as const;
+import { erc20ABI } from '@/abis/erc20'; 
+import { arcLinkABI } from '../abis/arcLink'; // Importando a ABI correta
+import { ARC_LINK_ADDRESS, EURC_ADDRESS } from '@/lib/constants'; // Importando constantes atualizadas
 
 // Helper para Copiar
 function CopyToClipboardButton({ textToCopy }: { textToCopy: string }) {
@@ -157,12 +129,14 @@ export function ArcLink() {
         setCurrentAction('create');
 
         const hash = keccak256(encodePacked(['string'], [createSecret]));
-        const tokenAddr = createTokenType === 'usdc' ? NATIVE_TOKEN_ADDRESS : EURC_ADDRESS;
+        
+        // Se for USDC (Nativo), manda o address(0) para o contrato saber
+        const tokenAddr = createTokenType === 'usdc' ? zeroAddress : EURC_ADDRESS;
         const value = createTokenType === 'usdc' ? parsedAmount : 0n;
 
         writeContract({
-            abi: arcLinkAbi,
-            address: ARC_LINK_ADDRESS,
+            abi: arcLinkABI, // Usando a ABI importada
+            address: ARC_LINK_ADDRESS, // Usando endereço atualizado
             functionName: 'createLink',
             args: [hash, tokenAddr, parsedAmount],
             value: value,
@@ -174,7 +148,7 @@ export function ArcLink() {
         setCurrentAction('claim');
 
         writeContract({
-            abi: arcLinkAbi,
+            abi: arcLinkABI,
             address: ARC_LINK_ADDRESS,
             functionName: 'claimLink',
             args: [claimSecret, address],

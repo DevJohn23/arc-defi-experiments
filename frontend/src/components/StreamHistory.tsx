@@ -4,10 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAccount, usePublicClient } from 'wagmi';
 import { formatUnits, zeroAddress } from 'viem';
 import { arcStreamABI } from '@/abis/arcStream';
-
-// Contract Addresses
-const ARC_STREAM_ADDRESS = '0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524';
-const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
+import { ARC_STREAM_ADDRESS, EURC_ADDRESS } from '@/lib/constants'; // Importando constantes atualizadas
 
 interface Stream {
   streamId: bigint;
@@ -79,7 +76,7 @@ export function StreamHistory() {
     if (tokenAddress.toLowerCase() === zeroAddress.toLowerCase()) {
       return { 
         name: 'USDC', 
-        decimals: 18, // Assumindo nativo como 18 no display, ajuste se necessário
+        decimals: 18, // Assumindo nativo como 18 no display
         style: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' 
       };
     }

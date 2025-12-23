@@ -10,6 +10,7 @@ import { StreamHistory } from '@/components/StreamHistory';
 import { ArcLink } from '@/components/ArcLink';
 import { ArcDCA } from '@/components/ArcDCA';
 import { Footer } from '@/components/footer';
+import { Profile } from '@/components/Profile';
 
 
 // Contract Addresses
@@ -17,14 +18,14 @@ const ARC_STREAM_ADDRESS = '0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524';
 const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
 
 type TokenSymbol = 'NATIVE' | 'EURC';
-type ActiveTab = 'stream' | 'link' | 'dca';
+type ActiveTab = 'stream' | 'link' | 'dca' | 'profile';
 
 export default function Home() {
   const { address } = useAccount();
   const { writeContract } = useWriteContract();
 
   // Component State
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dca'); // Começar no DCA (destaque da atualização)
+  const [activeTab, setActiveTab] = useState<ActiveTab>('profile'); // Começar no DCA (destaque da atualização)
   const [selectedToken, setSelectedToken] = useState<TokenSymbol>('NATIVE');
   
   // Form State
@@ -163,6 +164,16 @@ export default function Home() {
         <div className="flex justify-center mb-16">
           <div className="bg-gray-900/60 backdrop-blur-xl p-1.5 rounded-2xl border border-gray-700/50 inline-flex gap-2 shadow-2xl">
             <button
+              onClick={() => setActiveTab('profile')}
+              className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 ${
+                activeTab === 'profile' 
+                ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg shadow-yellow-900/30' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              🆔 Arc Passport
+            </button>
+            <button
               onClick={() => setActiveTab('stream')}
               className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 ${
                 activeTab === 'stream' 
@@ -198,6 +209,13 @@ export default function Home() {
         {/* 5. Renderização das Abas */}
         <div className="max-w-5xl mx-auto transition-all duration-500 min-h-[500px]">
           
+          {/* --- ABA PROFILE --- */}
+          {activeTab === 'profile' && (
+            <div className="animate-in fade-in zoom-in duration-300">
+              <Profile />
+            </div>
+          )}
+
           {/* --- ABA STREAM (Remodelada com Estilo Glass) --- */}
           {activeTab === 'stream' && (
             <div className="animate-in fade-in zoom-in duration-300">

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity ^0.8.20;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+
+// --- Interfaces ---
 
 interface IRouter {
     function swapExactTokensForTokens(
@@ -13,7 +16,10 @@ interface IRouter {
     ) external returns (uint256[] memory amounts);
 }
 
-contract ArcDCA {
+import "src/interfaces/IArcProfile.sol";
+
+
+contract ArcDCA is Ownable {
     // Estrutura de cada investimento
     struct Position {
         address owner;          // Dono do dinheiro
@@ -28,14 +34,28 @@ contract ArcDCA {
 
     mapping(uint256 => Position) public positions;
     uint256 public nextPositionId;
-    address public immutable router; // Endereço da Corretora (Swap)
+    address public router; // Endereço da Corretora (Swap)
+    address public arcProfile;
 
     event Deposited(uint256 indexed positionId, uint256 amount);
     event Executed(uint256 indexed positionId, uint256 amountIn, uint256 amountOut);
+    event ArcProfileAddressSet(address indexed arcProfileAddress);
+    event RouterSet(address indexed routerAddress);
 
-    constructor(address _router) {
-        router = _router;
+    constructor() Ownable(msg.sender) {}
+
+    // --- Owner Functions ---
+
+    function setArcProfileAddress(address _arcProfileAddress) external onlyOwner {
+        arcProfile = _arcProfileAddress;
+        emit ArcProfileAddressSet(_arcProfileAddress);
     }
+    
+    function setRouter(address _router) external onlyOwner {
+        router = _router;
+        emit RouterSet(_router);
+    }
+
 
     // 1. Criar Investimento Automático
     function createPosition(
@@ -63,6 +83,15 @@ contract ArcDCA {
 
         emit Deposited(nextPositionId, _totalDeposit);
         nextPositionId++;
+
+        // --- Gamification Hook ---
+        if (arcProfile != address(0)) {
+            try IArcProfile(arcProfile).addXP(msg.sender, 30, 2) { // 30 XP, Badge 2 (Investor)
+                // Success, do nothing
+            } catch {
+                // Failure is silent, do not revert the main transaction
+            }
+        }
     }
 
     // 2. Executar a Compra (Pode ser chamado por qualquer um / Bot)
@@ -72,6 +101,7 @@ contract ArcDCA {
         require(pos.isActive, "Position inactive");
         require(pos.totalBalance >= pos.amountPerTrade, "Insufficient funds");
         require(block.timestamp >= pos.lastExecution + pos.interval, "Too early");
+        require(router != address(0), "Router not set");
 
         // Atualiza estado (Checks-Effects)
         pos.lastExecution = block.timestamp;
@@ -85,7 +115,7 @@ contract ArcDCA {
         path[1] = pos.tokenOut;
 
         // Executa o Swap
-        IRouter(router).swapExactTokensForTokens(
+        uint[] memory amounts = IRouter(router).swapExactTokensForTokens(
             pos.amountPerTrade,
             0, // Slippage 0 para teste
             path,
@@ -93,6 +123,6 @@ contract ArcDCA {
             block.timestamp
         );
 
-        emit Executed(_positionId, pos.amountPerTrade, 0);
+        emit Executed(_positionId, pos.amountPerTrade, amounts[1]);
     }
 }
