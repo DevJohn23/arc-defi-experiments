@@ -1,4 +1,4 @@
-# 🏗️ Arc DeFi Suite (v2.0)
+# 🏗️ Arc DeFi Suite (v2.5)
 
 **A professional-grade suite of DeFi primitives and dApps exploring the capabilities of the Arc Network Testnet.**
 
@@ -12,29 +12,41 @@
 
 I am a final-year technology student and developer diving deep into the **Arc ecosystem**. This repository serves as my engineering log/portfolio as I build production-ready primitives for Arc.
 
-**The v2.0 Update (Current Release):**
-The project has evolved into a unified **"Glassmorphism" Dashboard**, fully supporting multi-currency operations (**USDC & EURC**) across all dApps.
+**The v2.5 Update (Gamification Layer):**
+This release introduces the **Arc Passport**, an on-chain reputation system. The project now features full **Contract Composability**, where the payment and trading contracts automatically interact with the Profile contract to award XP and Badges in real-time.
 
 **Key Explorations:**
+- **Smart Contract Composability:** Contracts (`Stream`, `Link`, `DCA`) autonomously calling external contracts to update user state (XP/Badges).
+- **Soulbound NFTs (SBT):** Implementing non-transferable identity tokens for on-chain reputation.
 - **Native USDC as Gas:** Mastering `payable` flows with 18-decimal stablecoins.
 - **Hybrid Asset Architecture:** A unified interface supporting both Native USDC and standard ERC-20 tokens (EURC).
-- **Mock Liquidity Environments:** Implementing custom **MockSwaps** to test trading logic without relying on unstable testnet pools.
 - **Client-Side Privacy:** Implementing off-chain hashing (`keccak256`) to secure secrets before they reach the mempool.
 
 **Tools used:** `Solidity 0.8.30` | `Foundry` | `Next.js` | `RainbowKit` | `Wagmi` | `Viem` | `Canvas Confetti`
 
 ---
 
-## 📂 Projects & Smart Contracts
+## 🆔 Arc Passport (New Gamification Layer)
+*File: `src/ArcProfile.sol` | UI: `Tabs/Profile`*
 
-### 1. 🤖 ArcDCA (New Flagship)
+A **Soulbound (Non-Transferable) NFT** that tracks a user's journey within the ecosystem.
+- **On-Chain Reputation:** Stores XP, Level, and Badges directly on the blockchain.
+- **Automated Rewards:**
+    - 🔗 **Linker Badge:** Unlocks when creating a Payment Link.
+    - 💸 **Streamer Badge:** Unlocks when starting a Money Stream.
+    - 🤖 **Investor Badge:** Unlocks when creating a DCA Vault.
+
+---
+
+## 📂 DeFi Primitives
+
+### 1. 🤖 ArcDCA
 *File: `src/ArcDCA.sol` | UI: `Tabs/Auto-Trade`*
 
 A **Dollar Cost Averaging (DCA) Vault** with an interactive dashboard.
 - **Mock Integration:** Solves testnet liquidity issues by routing trades through a custom **MockSwap** contract (USDC/EURC -> WETH).
 - **Dual-Currency Engine:** Users can seamlessly create vaults using **Native USDC** or **EURC**.
-- **Visual Dashboard:** Tracks active positions, balances, and next execution times in real-time.
-- **"Force Run" Logic:** Includes a manual trigger allowing users/devs to execute swaps on-chain instantly for validation (bypassing CRON jobs).
+- **Gamified:** Automatically awards **+100 XP** and the "Investor" Badge upon vault creation.
 
 ### 2. 🌊 ArcStream v2.1
 *File: `src/ArcStream.sol` | UI: `Tabs/ArcStream`*
@@ -42,7 +54,7 @@ A **Dollar Cost Averaging (DCA) Vault** with an interactive dashboard.
 A **Multi-Asset Payment Streaming Protocol** allowing real-time salary/vesting distribution.
 - **Features:** "Smart Form" UX that automatically toggles between **Approve** (ERC-20) and **Create** (Native) flows based on asset selection.
 - **Logic:** Continuous liquidity calculation allowing second-by-second withdrawals.
-- **Status:** Live & Stable.
+- **Gamified:** Awards **+50 XP** and the "Streamer" Badge.
 
 ### 3. 🔗 ArcLink
 *File: `src/ArcLink.sol` | UI: `Tabs/ArcLink`*
@@ -52,10 +64,7 @@ A **"Cash App" style Payment Link system**.
 - **Tech Stack:**
     - **Dual-Mode Contract:** Handles `msg.value` for Native USDC and `transferFrom` for EURC in a single component.
     - **Zero-Knowledge Secrets:** The password is hashed on the client-side. The contract only verifies the hash, ensuring the plain-text key is never exposed on-chain.
-
-### 4. 🏦 Legacy Primitives
-- **ArcTimeLock:** A Profit Locker Vault for disciplined trading with time constraints.
-- **ArcVault:** A transparent banking contract to test deposit/withdrawal flows.
+- **Gamified:** Awards **+20 XP** and the "Linker" Badge.
 
 ---
 
@@ -65,10 +74,10 @@ All contracts are deployed and verified on the **Arc Testnet**.
 
 | Contract | Feature | Explorer Link |
 |----------|---------|---------------|
-| **ArcDCA** | **Auto-Invest / MockSwap** | [View Contract](https://testnet.arcscan.app/address/0xEbbb3e8630D69ab25Cf55A4B78cf94cE9F3d376A) |
-| **ArcStream** | Streaming / Payroll | [View Contract](https://testnet.arcscan.app/address/0xB6E49f0213c47C6f42F4f9792E7aAf6a604FD524) |
-| **ArcLink** | Payment Links | [View Contract](https://testnet.arcscan.app/address/0x74D27f868FA5253D89e9C65527aD3397860bEE8e) |
-| **MockSwap** | Liquidity Simulation | [View Contract](https://testnet.arcscan.app/address/0xdaB8B474d6BC63A44e410f8174E796130988F7eD) |
+| **ArcProfile** | **On-Chain Identity (SBT)** | [View Contract](https://testnet.arcscan.app/address/0x375722a9D6D6295532C9c3213B6b73C2c14E6f2E) |
+| **ArcDCA** | Auto-Invest / MockSwap | [View Contract](https://testnet.arcscan.app/address/0x599A2327AA5D933F8f3Eb425AdB7F2E66e50690C) |
+| **ArcStream** | Streaming / Payroll | [View Contract](https://testnet.arcscan.app/address/0x51Fa95e5c024eBC595e44cF7573A4414f0bdA356) |
+| **ArcLink** | Payment Links | [View Contract](https://testnet.arcscan.app/address/0x58318146945D90925928326146f60f023EaAF32b) |
 
 ---
 
@@ -115,7 +124,7 @@ Open http://localhost:3000 to view the dApp.
 
 **🔮 Future Goals**
 
-With the core payment primitives and trading tools complete, my next focus is on Privacy Layers and exploring Order Book logic within the Arc ecosystem.
+With the core payment primitives and the reputation layer complete, my next focus is on Privacy Layers (ZK) and exploring Order Book logic within the Arc ecosystem.
 ---
 
 Built by Marcos - 2025
