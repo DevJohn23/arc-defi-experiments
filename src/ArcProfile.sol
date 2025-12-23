@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
 import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import "lib/openzeppelin-contracts/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 /**
  * @title ArcProfile
@@ -63,10 +63,6 @@ contract ArcProfile is ERC721, Ownable {
     }
     
     function transferFrom(address, address, uint256) public pure override {
-        revert("This is a Soulbound token and cannot be transferred.");
-    }
-
-    function safeTransferFrom(address, address, uint256) public pure override {
         revert("This is a Soulbound token and cannot be transferred.");
     }
 

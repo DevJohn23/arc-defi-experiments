@@ -1,8 +1,12 @@
 import { arcProfileABI } from '../abis/arcProfile';
 
-// 1. Endereços dos Contratos (Arc Testnet)
-export const ARC_PROFILE_ADDRESS = '0x...'; // TODO: Update with deployed address
-export const ARC_DCA_ADDRESS = '0xEbbb3e8630D69ab25Cf55A4B78cf94cE9F3d376A';
+// 1. Endereços dos Contratos (ATUALIZADOS - Arc Passport Deployment)
+export const ARC_PROFILE_ADDRESS = '0x375722a9D6D6295532C9c3213B6b73C2c14E6f2E';
+export const ARC_STREAM_ADDRESS = '0x51Fa95e5c024eBC595e44cF7573A4414f0bdA356';
+export const ARC_LINK_ADDRESS = '0x58318146945D90925928326146f60f023EaAF32b';
+export const ARC_DCA_ADDRESS = '0x599A2327AA5D933F8f3Eb425AdB7F2E66e50690C';
+
+// Mocks (Mantidos os anteriores - verifique se o script não gerou novos para MockSwap)
 export const MOCK_SWAP_ADDRESS = '0xdaB8B474d6BC63A44e410f8174E796130988F7eD';
 export const MOCK_WETH_ADDRESS = '0x6FE689cA658F9430cd5F0E31a48AFCE591907298';
 
@@ -15,7 +19,7 @@ export const EURC_ADDRESS = '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a';
 // 2. ABIs dos Contratos
 export { arcProfileABI } from '../abis/arcProfile';
 
-// ABI do Contrato ArcDCA (Mantida igual, com 'as const')
+// ABI do Contrato ArcDCA (Mantida igual)
 export const arcDCAAbi = [
   {
     "type": "function",

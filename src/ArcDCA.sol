@@ -16,9 +16,7 @@ interface IRouter {
     ) external returns (uint256[] memory amounts);
 }
 
-interface IArcProfile {
-    function addXP(address user, uint256 amount, uint256 badgeId) external;
-}
+import "src/interfaces/IArcProfile.sol";
 
 
 contract ArcDCA is Ownable {

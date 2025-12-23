@@ -6,9 +6,7 @@ import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
 // --- Interfaces ---
 
-interface IArcProfile {
-    function addXP(address user, uint256 amount, uint256 badgeId) external;
-}
+import "src/interfaces/IArcProfile.sol";
 
 /**
  * @title ArcStream Protocol

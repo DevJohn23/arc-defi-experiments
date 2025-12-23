@@ -1,6 +1,6 @@
 # 📈 Relatório de Progresso: Projeto ArcStream
 
-**Última Atualização:** domingo, 15 de dezembro de 2025
+**Última Atualização:** domingo, 21 de dezembro de 2025
 
 Este documento serve como uma fonte central de verdade para o contexto, progresso e próximos passos do projeto ArcStream. Ele deve ser consultado no início de cada sessão para garantir a continuidade do trabalho.
 
@@ -137,14 +137,47 @@ Este documento serve como uma fonte central de verdade para o contexto, progress
         *   **Criar Stream:** Formulário funcional para chamar a função `createStream` do contrato.
         *   **Consultar/Sacar:** Seção para verificar o saldo sacável de um stream (`balanceOf`) e para executar o saque (`withdrawFromStream`).
 
+### Camada de Gamificação: Arc Passport
+
+-   **Status:** Concluído (Backend e Frontend).
+-   **Objetivo:** Implementar um sistema on-chain de reputação via "Arc Passport", um NFT Soulbound.
+-   **Funcionalidades Implementadas:**
+    1.  **Contrato `src/ArcProfile.sol`:**
+        *   Criado um novo contrato ERC-721 Soulbound (não transferível) que atua como o "Arc Passport" de um usuário.
+        *   **Estrutura de Dados:** Gerencia `xp` (pontos de experiência), `level` (nível baseado em XP) e `badges` (coleção de medalhas: Streamer, Linker, Investor) para cada usuário.
+        *   **Funções Principais:**
+            *   `mintProfile()`: Permite ao usuário cunhar seu NFT de perfil gratuito.
+            *   `addXP(address user, uint256 amount, uint256 badgeId)`: Função protegida (`onlyAuthorized`) para incrementar XP e liberar medalhas.
+            *   `authorizeContract(address _contract)`: Permite ao proprietário autorizar outros contratos a chamar `addXP`.
+    2.  **Integração com Contratos Existentes (`src/ArcStream.sol`, `src/ArcLink.sol`, `src/ArcDCA.sol`):**
+        *   Adicionada uma interface `IArcProfile` (`src/interfaces/IArcProfile.sol`) e uma variável de estado `arcProfile` em cada contrato.
+        *   Função `setArcProfileAddress()` adicionada para definir o endereço do `ArcProfile`.
+        *   Chamadas externas para `IArcProfile(arcProfile).addXP(msg.sender, XP_VALUE, BADGE_ID)` foram adicionadas nas funções principais (`createStream`, `createLink`, `createPosition`).
+        *   Todas as chamadas `addXP` são encapsuladas em blocos `try/catch` para garantir que falhas na gamificação não revertam as transações principais.
+    3.  **Script de Deploy Unificado (`script/DeployAll.s.sol`):**
+        *   Criado um script de deploy que coordena o deploy de todos os contratos: `MockWETH`, `MockSwap`, `ArcProfile`, `ArcStream`, `ArcLink`, `ArcDCA`.
+        *   O script chama `authorizeContract` no `ArcProfile` para os contratos `ArcStream`, `ArcLink` e `ArcDCA`.
+        *   Define o endereço do `ArcProfile` em cada um dos outros três contratos, e o `MockSwap` como router para `ArcDCA`.
+    4.  **Frontend (Aba "Arc Passport"):**
+        *   Novo componente `frontend/src/components/Profile.tsx` criado com estilo Glassmorphism.
+        *   **Layout:** Exibe um avatar placeholder, nível atual, barra de progresso de XP, e um grid de 3 medalhas (coloridas se desbloqueadas, cinza se bloqueadas).
+        *   **Funcionalidade:** Um botão "Mint Arc Passport 🆔" é exibido se o usuário não possui um perfil, permitindo a cunhagem.
+        *   `frontend/src/app/page.tsx` atualizado para incluir a nova aba "🆔 Arc Passport" no menu de navegação e renderizar o componente `Profile`.
+        *   `frontend/src/abis/arcProfile.ts` e `frontend/src/lib/constants.ts` atualizados com a ABI e o endereço do contrato `ArcProfile` (`0x810C444c56632D4daeC827448ddc161Ebd97A2eF`).
+
 ---
 
 ## 🎯 Próximos Passos (Para o Usuário)
 
 Para executar e interagir com o frontend, as seguintes ações são necessárias:
 
-1.  **Navegar até o diretório:** `cd frontend`
-2.  **Instalar dependências:** `npm install`
-3.  **Configurar WalletConnect:** Obter um `projectId` no site do WalletConnect e inseri-lo no arquivo `src/lib/wagmi.ts`.
-4.  **Executar o dApp:** `npm run dev`
-5.  **Acessar no navegador:** Abrir `http://localhost:3000`.
+1.  **Fundos para Deploy:** Certifique-se de que a carteira associada à sua `PRIVATE_KEY` (usada para deploy na Arc Testnet) possui fundos suficientes em test ETH para cobrir os custos de gás da implantação de todos os contratos.
+2.  **Re-executar o Script de Deploy:** Execute o comando `forge script script/DeployAll.s.sol --rpc-url https://rpc.testnet.arc.network/ --broadcast --private-key $PRIVATE_KEY`.
+    *   Este comando implantará todos os contratos necessários e configurará suas interações.
+    *   O endereço do contrato `ArcProfile` já foi atualizado no frontend (`frontend/src/lib/constants.ts`) com o endereço `0x810C444c56632D4daeC827448ddc161Ebd97A2eF` da última tentativa de deploy. Se o deploy for bem-sucedido e o endereço for o mesmo, nenhuma ação adicional é necessária no frontend.
+3.  **Navegar até o diretório do Frontend:** `cd frontend`
+4.  **Instalar dependências (se necessário):** `npm install` (o pacote `sonner` já foi adicionado).
+5.  **Configurar WalletConnect:** Obter um `projectId` no site do WalletConnect e inseri-lo no arquivo `src/lib/wagmi.ts`.
+6.  **Executar o dApp localmente (opcional):** `npm run dev`
+7.  **Acessar no navegador:** Abrir `http://localhost:3000`.
+8.  **Deploy na Vercel:** Após o deploy bem-sucedido dos contratos na rede, você pode fazer o deploy do seu frontend para a Vercel. Como o endereço do `ArcProfile` já está configurado no `constants.ts`, o frontend deverá funcionar corretamente.
